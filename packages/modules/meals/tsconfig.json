@@ -1,12 +1,4 @@
 {
   "extends": "../../../tsconfig.base.json",
-  "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist"
-  },
-  "references": [
-    { "path": "../../core" },
-    { "path": "../../kernels/food" }
-  ],
   "include": ["src/**/*"]
 }

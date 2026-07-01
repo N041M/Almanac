@@ -42,10 +42,13 @@ fails the build.
   build snag.
 
 **Hardening pass** (resolved after the scaffold review)
-- ✅ **#4 — pure typecheck.** `pnpm typecheck` now runs
-  `tsc -p tsconfig.typecheck.json` (one no-emit program over all sources) and
-  leaves **zero** `dist/`/`.tsbuildinfo`. `tsc -b` moved to `pnpm build` for
-  packaging.
+- ✅ **#4 — pure typecheck.** `pnpm typecheck` runs `tsc --noEmit` over the whole
+  repo and leaves **zero** `dist/`/`.tsbuildinfo`.
+- ✅ **Source-based TS (editor fix).** Dropped `composite`/project references and
+  `baseUrl`; `paths` (relative values) resolve `@almanac/*` to `src`. This kills
+  the TS6305 "output not built" editor error that references caused once
+  typecheck stopped emitting, and clears the TS7 `baseUrl` deprecation. Apps will
+  get real build config from their bundler (Vite/Tauri) in Phase 2.
 - ✅ **#5 — L3 enforced.** A `boundaries/external` rule fails the build if
   `packages/core/src` (non-test) imports any external npm package. Probed:
   `import … from 'vitest'` in core is rejected.

@@ -19,9 +19,10 @@ Entries are grouped by **build phase** (design doc §13) until v1.
 - Vitest test runner; GitHub Actions CI (`typecheck` + `lint` + `test`).
 - i18n stubs: EN + CS locale files (core + meals namespaces).
 - `Clock` / `Rng` ports stubbed (L4 determinism seam).
-- Hardening: no-emit `typecheck` (`tsconfig.typecheck.json`; `tsc -b` → `build`);
+- Hardening: source-based TS (no `composite`/references/`baseUrl`; `paths` → src;
+  `tsc --noEmit` typecheck leaves no artifacts and avoids TS6305 in editors);
   L3 enforced via a `boundaries/external` rule (core/src imports no external
-  packages); CI install verified locally with `--frozen-lockfile`.
+  packages); CI install verified with `--frozen-lockfile`.
 - Docs: lightweight README; agent context; `docs/` with ARCHITECTURE (the laws +
   Mermaid UML: component, class, engine-flow), BUILD_JOURNAL (per-phase
   narrative), DECISIONS, and an index.

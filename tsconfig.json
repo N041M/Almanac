@@ -1,10 +1,9 @@
 {
-  "files": [],
-  "references": [
-    { "path": "packages/core" },
-    { "path": "packages/kernels/food" },
-    { "path": "packages/modules/meals" },
-    { "path": "packages/apps/desktop" },
-    { "path": "packages/apps/web" }
-  ]
+  // Whole-repo type-check program. Source-based: cross-package imports resolve
+  // via the base `paths` (→ src), so no build/dist is needed and there are no
+  // project references (which would demand built output and trip TS6305 in the
+  // editor). `pnpm typecheck` runs `tsc --noEmit` against this.
+  "extends": "./tsconfig.base.json",
+  "include": ["packages/**/*.ts", "packages/**/*.tsx"],
+  "exclude": ["**/dist/**", "**/node_modules/**"]
 }
