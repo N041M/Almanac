@@ -33,7 +33,9 @@ ESLint `boundaries` · i18next (EN + CS) · Open Food Facts · Open-Meteo.
 
 ## Status
 
-**Phase 0 (scaffold) complete** — workspaces, strict TS, boundary lint, Vitest,
+**Phase 1 (core) complete** — pure, framework-agnostic hub: day record + store,
+calendar model, recurrence, units, registry, i18n, ports (40 tests, zero UI deps).
+Phase 0 (scaffold) done before it. — workspaces, strict TS, boundary lint, Vitest,
 CI, i18n stubs; apps are stubs. Build phases: design doc §13.
 
 ## The one-line why

@@ -7,6 +7,43 @@ deferred, and anything we're unsure about.
 
 ---
 
+## Phase 1 — Core
+
+**Goal:** build the pure, framework-agnostic hub every module plugs into
+(design §5). Done when core compiles with **zero UI deps** and is unit-tested.
+
+**What we built** (all under `packages/core/src`, one concern per file):
+ports (six, split per file), time (`ISODate` + UTC date math + fixed clock),
+seeded RNG, units (convert/normalize/combine), schedule (`occurrencesInRange`),
+the sparse Day record + `DayStore` with isolated versioned slice codecs, the
+calendar model (locale week-start grid + priority intensity scale), the signal
+registry, and the i18n service (EN fallback + `Intl` formatting).
+
+**How the laws showed up in code**
+- **L4** everywhere: `Clock`/`Rng` injected; `createFixedClock` +
+  `createSeededRng` make time and randomness reproducible — no `Date.now()`/
+  `Math.random()` in logic.
+- **L5** is the throughline: absent day-slice = normal; a corrupt/unknown-
+  version/failed slice read degrades to the module default **in isolation**
+  (proved by a test where one bad slice leaves its neighbour intact); the
+  registry returns `undefined` when no provider (or a throwing one) exists;
+  units refuse rather than crash on incompatible/unknown units.
+- **L3/L8**: zero external deps in core (lint-enforced), strict TS throughout.
+
+**Verified:** 40 unit tests; `pnpm check` green; the L1 boundary + L3
+core-purity lint rules still pass with real code in place.
+
+**Deferred (by design):** slice **migrations** — for now an unknown stored
+version degrades to default (L5-correct, but lossy); real per-version migration
+lands with persistence work. `todayISO` is UTC; a locale/timezone offset comes
+with the shell. No adapters yet (Storage/Weather/Nutrition) beyond the in-memory
+test storage — those are Phase 2+.
+
+**Next:** Phase 2 — the desktop calendar shell (Tauri + Vite/React) rendering
+Days end-to-end, wiring i18n (EN + CS), behind a `StoragePort` adapter.
+
+---
+
 ## Phase 0 — Scaffold
 
 **Goal:** make the design doc's laws mechanically true before any feature code

@@ -9,6 +9,30 @@ Entries are grouped by **build phase** (design doc §13) until v1.
 
 ## [Unreleased]
 
+### Phase 1 — Core
+- **Ports** (one file each): `Clock`, `Rng`, `StoragePort`, `WeatherPort`,
+  `NutritionPort`, and a reserved `SyncPort` (D1).
+- **Time:** `ISODate` (UTC, validated) + date math (add/diff days, weekday,
+  week/month bounds, month add with day-clamp); deterministic `createFixedClock`.
+- **RNG:** seedable `createSeededRng` (mulberry32) — reproducible streams (L4).
+- **Units:** mass/volume/count with conversion, normalization, and
+  `tryCombine` (compatible → merged; incompatible → kept separate).
+- **Schedule:** one RRULE-style `occurrencesInRange` (daily/weekly+byWeekday/
+  monthly, interval, count, until) behind todos/events/habits/shopping.
+- **Day record + store:** sparse `Day` (absent slice = normal, L5); `DayStore`
+  over `StoragePort` with **isolated, versioned slice codecs** — corrupt/
+  unknown-version/failed reads degrade to the module default without touching
+  neighbours; in-memory storage adapter for tests.
+- **Calendar model:** locale week-start `buildWeek`/`buildMonthGrid`; the shared
+  priority intensity scale (P1 solid → P3 faded; absent → full).
+- **Registry:** context-signal provider/consumer mediation; no provider (or a
+  throwing one) → `undefined`, a handled state (L5).
+- **i18n service:** `"namespace:key"` resolution with `{{param}}` interpolation,
+  English fallback, and `Intl` date/number formatting; `Locale` = text +
+  formatting + region (week-start, metric/imperial). EN_US / CS_CZ presets.
+- Pure, zero UI-framework deps (L3); deterministic (L4); **40 unit tests**;
+  `pnpm check` green.
+
 ### Phase 0 — Scaffold
 - pnpm workspace monorepo: `@almanac/core`, `@almanac/food` (kernel),
   `@almanac/meals` (module), `@almanac/desktop` + `@almanac/web` (app stubs).
@@ -28,5 +52,6 @@ Entries are grouped by **build phase** (design doc §13) until v1.
   narrative), DECISIONS, and an index.
 
 ### Not yet built
-Phase 1 (core: day record, calendar model, recurrence, units, registry, i18n
-service, full ports) onward. Apps are stubs — no Tauri/Vite/React wiring yet.
+Phase 2 onward (desktop calendar shell + i18n wiring; then food kernel, meal
+engine, …). Apps are stubs — no Tauri/Vite/React wiring yet. Kernels/modules
+still stubs.
