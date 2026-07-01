@@ -44,9 +44,10 @@ Shared needs move *down* into the core or a kernel, never sideways.
 
 ## Stack
 
-pnpm workspaces · TypeScript (strict) · React + Vite · **Electron** desktop app
-with a **web port** (shared renderer) · Vitest · ESLint `boundaries` ·
-i18next (EN + CS) · Open Food Facts (nutrition) · Open-Meteo (weather).
+pnpm workspaces · TypeScript (strict) · React + Vite · **Tauri** desktop app
+(system webview — lightweight) with a **web port** (shared renderer) · Vitest ·
+ESLint `boundaries` · i18next (EN + CS) · Open Food Facts (nutrition) ·
+Open-Meteo (weather).
 
 ## Develop
 

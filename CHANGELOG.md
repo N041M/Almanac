@@ -23,4 +23,4 @@ Entries are grouped by **build phase** (design doc §13) until v1.
 
 ### Not yet built
 Phase 1 (core: day record, calendar model, recurrence, units, registry, i18n
-service, full ports) onward. Apps are stubs — no Electron/Vite/React wiring yet.
+service, full ports) onward. Apps are stubs — no Tauri/Vite/React wiring yet.

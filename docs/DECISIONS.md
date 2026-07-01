@@ -5,14 +5,25 @@ to depart on), with rationale. Newest first. Keep entries short.
 
 ---
 
-## D3 — Desktop client is Electron (not Tauri)
+## D3 — Desktop shell is Tauri (supersedes an initial Electron pick)
 
 **Decided:** 2026-07-01 · **Status:** accepted · **Design ref:** §3
 
-The desktop shell is **Electron**, wrapping the shared Vite + React renderer;
-the same renderer ships as the **web port**. Core/kernels/module logic stay
-platform-agnostic (L3), so the shell is just a host. Electron chosen over Tauri
-per user preference (maturity/ecosystem over footprint).
+The desktop shell is **Tauri**, wrapping the shared Vite + React renderer; the
+same renderer ships as the **web port**. Core/kernels/module logic stay
+platform-agnostic (L3), so the shell is just a host.
+
+Reverses a same-day initial choice of Electron. Reason: **memory footprint.**
+Electron bundles Chromium + Node (a fixed ~hundreds-of-MB baseline); Tauri uses
+the OS-native webview (WebView2/WebKit) for a ~tens-of-MB baseline. The desktop
+has **no heavy native requirement** (barcode scanning is mobile-only per §8;
+desktop falls back to name search), so Electron's main advantage doesn't apply
+here. Cost of switching was ~zero — the app was still a stub. Bonus: removes the
+"Electron main process runs plain Node and can't consume raw `.ts`" build snag,
+since Tauri's backend is Rust and the frontend is Vite-bundled.
+
+Tradeoffs accepted: a light Rust toolchain for the backend, and testing render
+on each OS's system webview instead of "Chromium everywhere."
 
 ## D2 — Client architecture: desktop app + web port
 
