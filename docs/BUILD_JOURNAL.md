@@ -7,6 +7,43 @@ deferred, and anything we're unsure about.
 
 ---
 
+## Phase 2 — Desktop calendar shell (in progress)
+
+**Goal:** the calendar rendering Days end-to-end, in the shared renderer that is
+both the web port and the Tauri desktop frontend (decision D2/D3), with EN + CS.
+
+**What we built** (`packages/apps/web`): a Vite + React + Tailwind v4 renderer;
+a month grid driven by the core's `buildMonthGrid` (locale week-start, today and
+in/out-of-month styling, prev/next/today nav); react-i18next wired to a live
+EN/CS switch (weekday/month names from `Intl`); a `localStorage` `StoragePort`
+adapter + a Zustand store; and a small **demo "star a day" slice** that exercises
+the whole Day pipeline — write through the `DayStore`, read back on month load,
+render with the priority intensity scale.
+
+**Why the demo slice:** no real modules exist yet, so it's the smallest thing
+that proves the shell renders **Days from the store**, not just a static grid —
+persistence, sparse reads, and slice isolation all exercised through the UI.
+
+**Verified:** typecheck (core program + a separate web program for jsx/DOM),
+lint, `vite build`, and **3 jsdom/RTL tests** (grid renders, EN→CS relabels the
+UI, and select-then-star round-trips through storage). 43 tests total; the two
+Vitest projects (node + web) run under one `pnpm test`.
+
+**Honestly not done / not verified:**
+- **Native Tauri run.** The v2 shell is scaffolded (`apps/desktop/src-tauri`,
+  wrapping the web build), but there's **no Rust toolchain in this environment**,
+  so `tauri dev`/`build` couldn't run. The web port stands in as verification.
+  Icons and a native `StoragePort` (SQLite/filesystem) still to add.
+- **Week/day views.** Only month + a day panel so far.
+- **Config note:** the app uses extensionless relative imports (Vite/bundler
+  idiom) vs the libraries' explicit `.js`; typecheck is a two-step (core program
+  + the web program, which alone carries `jsx`/DOM libs — kept out of the core).
+
+**Next:** week/day views; wire a native adapter + icons and do a real Tauri run
+once Rust is available; then Phase 3 (food kernel).
+
+---
+
 ## Phase 1 — Core
 
 **Goal:** build the pure, framework-agnostic hub every module plugs into

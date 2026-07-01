@@ -9,6 +9,24 @@ Entries are grouped by **build phase** (design doc §13) until v1.
 
 ## [Unreleased]
 
+### Phase 2 — Desktop calendar shell (in progress)
+- Shared **Vite + React + Tailwind v4** renderer (`@almanac/web`) — the web port,
+  and the frontend the Tauri desktop shell loads.
+- **Month calendar** from the core (`buildMonthGrid`): locale week-start, today +
+  in/out-of-month styling, prev/next/today nav; selected-day panel with an
+  actionable empty state.
+- **i18n** wired (i18next + react-i18next), EN + CS, live language switch;
+  weekday/month names via `Intl`.
+- **`localStorage` `StoragePort` adapter** + Zustand store; a demo "star a day"
+  slice proves the Day pipeline end-to-end (render → persist → reload) with slice
+  isolation.
+- **Vitest projects** (node + jsdom/react); 3 RTL component tests — **43 total**.
+- **Tauri v2 shell** scaffolded (`apps/desktop/src-tauri`) wrapping the web build.
+  Native build needs the Rust toolchain (not installed here) — the web port is
+  verified via `vite build` + jsdom tests instead.
+- Still to do: week/day views; native run once Rust is present; a native
+  `StoragePort` adapter for desktop.
+
 ### Phase 1 — Core
 - **Ports** (one file each): `Clock`, `Rng`, `StoragePort`, `WeatherPort`,
   `NutritionPort`, and a reserved `SyncPort` (D1).
