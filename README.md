@@ -28,6 +28,10 @@ ESLint `boundaries` · i18next (EN + CS) · Open Food Facts · Open-Meteo.
 - **[ALMANAC_DESIGN_DOC.md](ALMANAC_DESIGN_DOC.md)** — the full handoff spec.
 - **[agent context](agent context)** — working context for the assistant.
 
+## License
+
+[MIT](LICENSE) © 2026 Ronald Karel Grant.
+
 ## Status
 
 **Phase 0 (scaffold) complete** — workspaces, strict TS, boundary lint, Vitest,
