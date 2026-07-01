@@ -26,7 +26,6 @@ ESLint `boundaries` · i18next (EN + CS) · Open Food Facts · Open-Meteo.
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — the laws, the dependency star, and UML diagrams.
 - **[CHANGELOG.md](CHANGELOG.md)** — what shipped, per phase.
 - **[ALMANAC_DESIGN_DOC.md](ALMANAC_DESIGN_DOC.md)** — the full handoff spec.
-- **[agent context](agent context)** — working context for the assistant.
 
 ## License
 

@@ -23,7 +23,7 @@ Entries are grouped by **build phase** (design doc §13) until v1.
   `tsc --noEmit` typecheck leaves no artifacts and avoids TS6305 in editors);
   L3 enforced via a `boundaries/external` rule (core/src imports no external
   packages); CI install verified with `--frozen-lockfile`.
-- Docs: lightweight README; agent context; `docs/` with ARCHITECTURE (the laws +
+- Docs: lightweight README; `docs/` with ARCHITECTURE (the laws +
   Mermaid UML: component, class, engine-flow), BUILD_JOURNAL (per-phase
   narrative), DECISIONS, and an index.
 

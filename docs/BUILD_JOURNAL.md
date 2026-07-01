@@ -22,7 +22,7 @@ fails the build.
 - Vitest + GitHub Actions CI (`typecheck` + `lint` + `test`).
 - i18n stubs (EN + CS) for core and the meals namespace.
 - `Clock` / `Rng` ports (the L4 determinism seam).
-- Docs: README, agent context, this journal, ARCHITECTURE (+ UML), DECISIONS.
+- Docs: README, this journal, ARCHITECTURE (+ UML), DECISIONS.
 
 **Verified (not asserted)**
 - `pnpm check` green.
