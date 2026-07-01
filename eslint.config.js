@@ -55,4 +55,20 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': 'error',
     },
   },
+  {
+    // L3: the core is pure and dependency-free — no external (node_modules)
+    // imports in core source. Shared needs move down into core itself or go
+    // behind a port; adapters live in kernels/apps. Tests may use externals.
+    files: ['packages/core/src/**/*.{ts,tsx}'],
+    ignores: ['packages/core/src/**/*.{test,spec}.{ts,tsx}'],
+    rules: {
+      'boundaries/external': [
+        'error',
+        {
+          default: 'allow',
+          rules: [{ from: ['core'], disallow: ['*', '@*/*'] }],
+        },
+      ],
+    },
+  },
 );

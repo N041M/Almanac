@@ -41,16 +41,22 @@ fails the build.
   Bonus: removed the "Electron main runs plain Node, can't consume raw `.ts`"
   build snag.
 
-**Deferred / known-open** (from the scaffold review)
+**Hardening pass** (resolved after the scaffold review)
+- ✅ **#4 — pure typecheck.** `pnpm typecheck` now runs
+  `tsc -p tsconfig.typecheck.json` (one no-emit program over all sources) and
+  leaves **zero** `dist/`/`.tsbuildinfo`. `tsc -b` moved to `pnpm build` for
+  packaging.
+- ✅ **#5 — L3 enforced.** A `boundaries/external` rule fails the build if
+  `packages/core/src` (non-test) imports any external npm package. Probed:
+  `import … from 'vitest'` in core is rejected.
+- ◐ **#3 — CI install verified locally.** The exact CI command
+  (`pnpm install --frozen-lockfile`) passes locally; native-build approval
+  (esbuild/unrs-resolver) is authorized in `pnpm-workspace.yaml`. Full
+  fresh-machine run confirmed on first push.
+
+**Still deferred (by design)**
 - App runtime/build strategy (bundle-everything via Vite; Tauri backend is Rust)
   — settled in principle, wired in Phase 2.
-- CI never actually run yet (nothing pushed) — the native-build approval
-  (esbuild/unrs-resolver) is authorized in `pnpm-workspace.yaml` but unverified
-  end-to-end until the first push.
-- `pnpm typecheck` uses `tsc -b`, which emits `dist/` + `.tsbuildinfo`
-  (gitignored) rather than being a pure no-op check.
-- L3 "core has zero runtime deps" isn't yet lint-enforced (boundaries only
-  governs cross-package imports, not external npm deps).
 
 **Next:** Phase 1 — the core: day record + day-store contract, calendar model,
 schedule/recurrence, units, registry, i18n service, and the full port set.
