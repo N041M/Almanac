@@ -9,6 +9,26 @@ Entries are grouped by **build phase** (design doc §13) until v1.
 
 ## [Unreleased]
 
+### Sweep — dead code, bugs, redundancies (post-review fixes)
+- **core:** one `parseISO` validation path (was double-validating); `MS_PER_DAY`
+  exported and used everywhere (no inline `86_400_000`); new **`dateFromISO`**
+  as the single ISODate→`Date` bridge (core i18n + web app now share it);
+  recurrence honours its "never throws" contract (malformed dates → `[]`, L5)
+  and skips straight to the query window when no `count` cap applies;
+  `buildMonthGrid` pads the year.
+- **web:** a failed persistence write degrades to session-only state instead of
+  an unhandled rejection (L5); `<html lang>` follows the language switch;
+  Intl formatters memoized; gridcell labels are localized dates; "today"
+  refreshes across midnight; grid computed once per navigation
+  (`loadRange(first, last)`); dead `systemClock` + duplicate `dateFromISO`
+  removed; RTL cleanup made explicit (vitest globals off).
+- **dead code deleted:** `packages/core/src/i18n/locales/*` (unreferenced since
+  the web app ships its own bundles).
+- **desktop:** real CSP instead of `null` (self-only + Tauri IPC; external API
+  origins get added per-adapter later); `Cargo.lock` committed for reproducible
+  native builds.
+- 46 tests.
+
 ### Phase 2 — Desktop calendar shell (in progress)
 - Shared **Vite + React + Tailwind v4** renderer (`@almanac/web`) — the web port,
   and the frontend the Tauri desktop shell loads.
