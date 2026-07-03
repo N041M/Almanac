@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import {
   addMonths,
-  buildMonthGrid,
   createDayStore,
   getSlice,
   type ISODate,
@@ -35,9 +34,9 @@ interface CalendarState {
   goToday: () => void;
   select: (date: ISODate) => void;
   toggleStar: (date: ISODate) => Promise<void>;
-  /** Load the visible month's slices. Driven by the view's effect on
-   *  year/month/locale — actions only change state, they don't load. */
-  loadMonth: () => Promise<void>;
+  /** Load the slices for the visible grid range. Driven by the view's effect
+   *  (it owns the grid) — actions only change state, they don't load. */
+  loadRange: (first: ISODate, last: ISODate) => Promise<void>;
 }
 
 export const useCalendar = create<CalendarState>((set, get) => {
@@ -71,19 +70,18 @@ export const useCalendar = create<CalendarState>((set, get) => {
 
     toggleStar: async (date) => {
       const next = !(get().starred[date] ?? false);
-      await dayStore.writeSlice(date, dayMarkCodec, { starred: next });
+      // Optimistic: the UI answers even when persistence can't (quota, private
+      // mode). A failed write degrades to session-only state, quietly (L5).
       set((s) => ({ starred: { ...s.starred, [date]: next } }));
+      try {
+        await dayStore.writeSlice(date, dayMarkCodec, { starred: next });
+      } catch {
+        // Persistence unavailable; in-memory state already reflects the action.
+      }
     },
 
-    loadMonth: async () => {
+    loadRange: async (first, last) => {
       const seq = ++loadToken;
-      const { year, month, locale } = get();
-      const grid = buildMonthGrid(year, month, locale.weekStartsOn);
-      const first = grid[0]?.[0]?.date;
-      const lastRow = grid[grid.length - 1];
-      const last = lastRow?.[lastRow.length - 1]?.date;
-      if (first === undefined || last === undefined) return;
-
       const days = await dayStore.getRange(first, last, [dayMarkCodec]);
       if (seq !== loadToken) return; // a newer load started; drop this stale result
 

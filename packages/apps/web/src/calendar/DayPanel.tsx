@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { bcp47 } from '@almanac/core';
+import { bcp47, dateFromISO } from '@almanac/core';
 import { useCalendar } from '../state/store';
-import { dateFromISO } from '../util';
 
 /** Detail panel for the selected day. Empty state is actionable, not blank (L5). */
 export function DayPanel() {

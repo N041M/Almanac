@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { EN_US } from '@almanac/core';
@@ -28,6 +28,8 @@ describe('calendar shell', () => {
     expect(screen.getByRole('button', { name: 'Today' })).toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText('Language'), 'cs');
     expect(screen.getByRole('button', { name: 'Dnes' })).toBeInTheDocument();
+    // the document language follows, so screen readers switch pronunciation
+    expect(document.documentElement.lang).toBe('cs');
   });
 
   it('selecting today and starring it persists through the day store (end-to-end)', async () => {
@@ -43,5 +45,24 @@ describe('calendar shell', () => {
     // A starred marker now shows on the grid, read back from storage.
     expect(await screen.findByLabelText('Starred day')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remove star' })).toBeInTheDocument();
+  });
+
+  it('degrades quietly when persistence fails: the star still works in-memory (L5)', async () => {
+    const setItem = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(() => {
+        throw new Error('QuotaExceededError');
+      });
+    try {
+      const user = userEvent.setup();
+      render(<App />);
+      await user.click(screen.getByRole('gridcell', { current: 'date' }));
+      await user.click(screen.getByRole('button', { name: 'Star this day' }));
+      // No crash, no rejection — the UI reflects the action for this session.
+      expect(await screen.findByLabelText('Starred day')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Remove star' })).toBeInTheDocument();
+    } finally {
+      setItem.mockRestore();
+    }
   });
 });

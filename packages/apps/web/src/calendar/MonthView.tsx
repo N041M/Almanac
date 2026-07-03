@@ -1,16 +1,35 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { buildMonthGrid, bcp47, intensityForPriority, type Weekday } from '@almanac/core';
+import {
+  buildMonthGrid,
+  bcp47,
+  dateFromISO,
+  intensityForPriority,
+  MS_PER_DAY,
+  type Weekday,
+} from '@almanac/core';
 import { useCalendar } from '../state/store';
 import { today } from '../clock';
 
 /** Localized short weekday labels, ordered from the locale's week-start. */
-function weekdayLabels(localeTag: string, weekStartsOn: Weekday): string[] {
-  const fmt = new Intl.DateTimeFormat(localeTag, { weekday: 'short' });
+function weekdayLabels(fmt: Intl.DateTimeFormat, weekStartsOn: Weekday): string[] {
   const sunday = Date.UTC(2023, 0, 1); // 2023-01-01 is a Sunday
   return Array.from({ length: 7 }, (_, i) =>
-    fmt.format(new Date(sunday + ((weekStartsOn + i) % 7) * 86_400_000)),
+    fmt.format(new Date(sunday + ((weekStartsOn + i) % 7) * MS_PER_DAY)),
   );
+}
+
+/** The local date, kept current across midnight while the app stays open. */
+function useToday(): string {
+  const [value, setValue] = useState(today);
+  useEffect(() => {
+    const id = setInterval(() => {
+      const now = today();
+      setValue((prev) => (prev === now ? prev : now));
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return value;
 }
 
 export function MonthView() {
@@ -24,22 +43,36 @@ export function MonthView() {
   const nextMonth = useCalendar((s) => s.nextMonth);
   const goToday = useCalendar((s) => s.goToday);
   const select = useCalendar((s) => s.select);
-  const loadMonth = useCalendar((s) => s.loadMonth);
-
-  useEffect(() => {
-    void loadMonth();
-  }, [year, month, locale, loadMonth]);
+  const loadRange = useCalendar((s) => s.loadRange);
 
   const tag = bcp47(locale);
-  const grid = buildMonthGrid(year, month, locale.weekStartsOn, today());
-  const title = new Intl.DateTimeFormat(tag, {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(Date.UTC(year, month - 1, 1)));
+  // Intl formatter construction is costly; rebuild only when the locale changes.
+  const formatters = useMemo(
+    () => ({
+      weekday: new Intl.DateTimeFormat(tag, { weekday: 'short', timeZone: 'UTC' }),
+      title: new Intl.DateTimeFormat(tag, { month: 'long', year: 'numeric', timeZone: 'UTC' }),
+      cell: new Intl.DateTimeFormat(tag, { dateStyle: 'full', timeZone: 'UTC' }),
+    }),
+    [tag],
+  );
+
+  const todayDate = useToday();
+  const grid = useMemo(
+    () => buildMonthGrid(year, month, locale.weekStartsOn, todayDate),
+    [year, month, locale.weekStartsOn, todayDate],
+  );
+
+  const first = grid[0]?.[0]?.date;
+  const lastRow = grid[grid.length - 1];
+  const last = lastRow?.[lastRow.length - 1]?.date;
+  useEffect(() => {
+    if (first !== undefined && last !== undefined) void loadRange(first, last);
+  }, [first, last, loadRange]);
+
+  const title = formatters.title.format(dateFromISO(`${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-01`));
 
   return (
-    <section aria-label="calendar" className="mx-auto max-w-2xl">
+    <section aria-label={t('title')} className="mx-auto max-w-2xl">
       <div className="mb-2 flex items-center justify-between">
         <button
           aria-label={t('prevMonth')}
@@ -66,7 +99,7 @@ export function MonthView() {
       <div role="grid" aria-label={t('title')} className="grid grid-cols-7 gap-1 text-sm">
         {/* `contents` keeps rows in the ARIA tree without breaking the 7-col grid. */}
         <div role="row" className="contents">
-          {weekdayLabels(tag, locale.weekStartsOn).map((label) => (
+          {weekdayLabels(formatters.weekday, locale.weekStartsOn).map((label) => (
             <div
               key={label}
               role="columnheader"
@@ -86,7 +119,7 @@ export function MonthView() {
                 <button
                   key={cell.date}
                   role="gridcell"
-                  aria-label={cell.date}
+                  aria-label={formatters.cell.format(dateFromISO(cell.date))}
                   aria-current={cell.isToday ? 'date' : undefined}
                   aria-selected={isSelected}
                   onClick={() => select(cell.date)}
