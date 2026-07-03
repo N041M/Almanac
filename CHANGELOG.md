@@ -9,6 +9,18 @@ Entries are grouped by **build phase** (design doc §13) until v1.
 
 ## [Unreleased]
 
+### Roadmap — all gap features planned, multi-user in scope (D5)
+- New [docs/ROADMAP.md](docs/ROADMAP.md): the authoritative 12-phase sequence.
+  Adds notifications (`NotificationPort`), recurrence v2 (yearly, nth-weekday,
+  exDates, per-instance overrides), timed/multi-day/timezone events, hour-grid
+  + agenda + year views, drag & drop, undo, ICS import/export + subscriptions,
+  search, NL quick entry, birthdays, widgets/tray, printing.
+- **D5:** multi-user features (shared calendars, attendees/invites/RSVP,
+  free-busy + find-a-time, booking pages, conferencing links) planned as
+  Phase 12 on top of sync — reversing design doc §15's exclusion.
+- Two contracts pinned for P6 entry so the tasks module can't ship events in a
+  pre-v2 shape.
+
 ### Week + day views (Phase 2 complete on the web renderer)
 - **View switcher** (Month / Week / Day segmented control) in the calendar
   header; nav arrows step by the active view (month / 7 days / 1 day).

@@ -5,6 +5,21 @@ to depart on), with rationale. Newest first. Keep entries short.
 
 ---
 
+## D5 — Multi-user features planned (supersedes design doc §15's exclusion)
+
+**Decided:** 2026-07-03 · **Status:** accepted · **Design ref:** §15 · Builds on D1/D4
+
+Shared calendars, attendees/invitations/RSVP, free-busy + find-a-time, booking
+pages, and conferencing links are **in scope**, as Phase 12 in
+[ROADMAP.md](ROADMAP.md) — after sync (P10), whose accounts + per-slice
+revision streams they build on. All additive per L5: signed-out/offline clients
+keep full single-user behaviour. Client logic stays modular (L1–L3); the new
+surface is server-side (ACLs, invite routing, availability, booking endpoint),
+specced at P12 entry. External invites reuse P8's ICS work via iMIP.
+
+**Why:** user: "also add multi-user features" — reversing §15's deliberate
+exclusion after the roadmap made the trade-offs visible.
+
 ## D4 — L6 relaxed; sync architecture pinned (server-durable, locally-cached)
 
 **Decided:** 2026-07-03 · **Status:** accepted · **Design ref:** §2 L6, §11 · Refines D1
