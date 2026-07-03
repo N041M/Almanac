@@ -20,6 +20,13 @@ Entries are grouped by **build phase** (design doc §13) until v1.
   Phase 12 on top of sync — reversing design doc §15's exclusion.
 - Two contracts pinned for P6 entry so the tasks module can't ship events in a
   pre-v2 shape.
+- **L5 degradation matrix** added to the roadmap: every planned feature (P6–P12)
+  has a defined, quiet fallback as an acceptance criterion — incl. override
+  corruption, missed notifications, failed drops, stale feeds, revoked shares,
+  undeliverable invites, concurrent bookings.
+- **Invite whitelist**: invites from trusted senders auto-accept onto the
+  calendar (quiet indicator, off by default, revocable, fail-closed when the
+  whitelist is unavailable or the sender is spoof-suspect).
 
 ### Week + day views (Phase 2 complete on the web renderer)
 - **View switcher** (Month / Week / Day segmented control) in the calendar

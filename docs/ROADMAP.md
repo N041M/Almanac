@@ -124,6 +124,14 @@ or offline client keeps its full single-user behaviour (L5).
   invitees get **iMIP email invites** (the RFC 5546 flow), reusing P8's ICS
   serializer. RSVP state lands back on the event. Degrade: no email adapter
   configured → invites are copy-link/manual export.
+- **Invite whitelist (auto-accept).** A per-account list of trusted senders.
+  An incoming invite from a whitelisted person skips the pending state: it is
+  **auto-accepted onto the calendar** (RSVP yes sent), marked with a quiet
+  "added automatically" indicator so it's visible it wasn't hand-confirmed.
+  Off by default; per-person entries, revocable any time (revoking stops
+  future auto-accepts, never retro-deletes events). Conflicts don't block it —
+  an auto-accepted event that collides with an existing one is still added,
+  with the standard overlap rendering flagging it.
 - **Free-busy & find-a-time.** Accounts can expose availability (busy blocks
   only — no titles/details) per share-grant; the picker overlays attendees'
   busy blocks to suggest slots. Privacy default: nothing exposed until a grant
@@ -139,9 +147,71 @@ Boundary note: all client logic lands as modules/UI over core seams (L1–L3
 hold); the substantial new surface here is **server-side** (ACLs, invite
 routing, availability, booking) — spec that service at P12 entry.
 
+---
+
+## Degradation matrix (L5) — acceptance criteria, not prose
+
+Per design §9/§12: every feature below ships **with tests proving its degraded
+state** — defined, working, and quiet (no nags, no blank screens, no cascading
+failures). A feature is not done until its row here is demonstrably true.
+
+### Phase 6 — calendar core v2
+
+| Feature | Failure / absence | Degraded state |
+|---|---|---|
+| Recurrence v2 | malformed rule or dates | `[]`, never throws (as v1) |
+| Instance overrides | corrupt/unknown-version override record | that override is ignored; the base series renders intact — an override can *never* take down its series |
+| Instance overrides | override referencing a non-occurrence | inert, skipped |
+| Timed events | unknown/missing IANA zone | render in the viewer's local zone |
+| Timed events | end before start / invalid span | treated as an all-day entry on the start date; flagged in the editor, never dropped |
+| Multi-day spans | span crosses a corrupted day slice | the span renders (it derives from the event, not the day slice); only that day's other content defaults |
+| `NotificationPort` | permission denied / platform unsupported | quiet in-app badges + agenda emphasis; asks once, never nags |
+| `NotificationPort` | app closed at fire time (web port) | missed reminders listed quietly on next open, then cleared |
+| Hour-grid view | entry with no time | all-day lane at the top |
+| Hour-grid view | overlapping events | side-by-side packing; nothing is ever hidden behind something else |
+| Drag & drop | slice write fails on drop | optimistic move stands for the session (same contract as every write); pointer unavailable → keyboard move (cut/paste style) always exists |
+| Undo | inverse write fails / stack lost on reload | that undo entry is dropped quietly; undo is best-effort session state, never a data authority |
+
+### Phases 7–9 — tasks, interop, life modules
+
+| Feature | Failure / absence | Degraded state |
+|---|---|---|
+| NL quick entry | unparseable/ambiguous text | item is created with the raw text as title, no date — entry is **never blocked** by the parser; sigils still apply |
+| Reminders | no notification adapter | in-app due indicators only |
+| ICS import | unparseable components | skipped and counted ("imported 34, skipped 2"), never aborts the file |
+| ICS import | oversized file | chunked with partial-import progress; cancel keeps what's in |
+| Subscriptions | offline / feed 404 / parse error | last cached copy, with a quiet staleness hint; feed removal deletes only that feed's entries |
+| Search | module registered no text extractor | that module's data simply isn't searchable |
+| Search | index build failure | empty results + silent rebuild on next query; search never blocks the app |
+| Year view / printing | no data / print of empty range | renders the grid/pages anyway (empty state is the most common state) |
+| Birthdays | contacts permission denied | manual entries only — the module's full core behaviour |
+
+### Phase 12 — multi-user (every feature additive on top of a working single-user app)
+
+| Feature | Failure / absence | Degraded state |
+|---|---|---|
+| All of P12 | signed out / no account / offline | full single-user behaviour; multi-user affordances simply absent |
+| Shared calendars | server unreachable | last-synced shared entries stay visible; local edits queue and reconcile LWW on reconnect |
+| Shared calendars | grant revoked / calendar deleted by owner | that calendar's entries vanish cleanly on next pull; nothing else is touched (slice isolation) |
+| Invites | recipient not on the platform, no email adapter | copy-link / manual `.ics` export |
+| Invites | email delivery failure | quiet "not delivered" status on the attendee row — never a modal |
+| RSVP | conflicting updates | per-attendee-record LWW, silent |
+| Invite whitelist | whitelist slice unavailable / corrupt | invites fall back to the normal pending flow (fail-closed: never auto-accept on uncertainty) |
+| Invite whitelist | sender ambiguous / spoof-suspect (email mismatch) | treated as not whitelisted → pending flow |
+| Invite whitelist | auto-accepted event collides with existing plans | still added + standard overlap flag; auto-accept never silently drops or double-books invisibly |
+| Free-busy | attendee granted nothing | shown as "unknown"; find-a-time suggests from what it has; zero grants → the picker is a plain manual picker |
+| Booking page | slot taken concurrently | server validates at confirm; second booker gets an immediate re-suggest, owner sees one booking |
+| Booking page | link revoked | tombstone page; owner's app unaffected |
+| Conference links | malformed URL | rendered as plain text, no join button |
+
+Cross-cutting (unchanged from §9): any module absent → the calendar renders
+without it; any storage slice corrupt → that slice defaults in isolation; every
+external call sits behind a port; every empty state is actionable.
+
 ## Decide-at-phase-entry markers
 - **P6 entry:** confirm 6.1/6.2 contracts (they're proposals until then).
 - **P8 entry:** pick the ICS strategy (own minimal parser vs vetted dep in the
   module) after checking dep size/quality then.
 - **P12 entry:** spec the server service (ACL model, invite routing,
-  availability, booking endpoint) before client work.
+  availability, booking endpoint) before client work — including the failure
+  rows above as server acceptance criteria.
