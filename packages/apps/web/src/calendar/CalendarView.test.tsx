@@ -4,12 +4,19 @@ import userEvent from '@testing-library/user-event';
 import { EN_US, addDays } from '@almanac/core';
 import { App } from '../App';
 import { useCalendar } from '../state/store';
+import { today } from '../clock';
 import i18n from '../i18n/config';
 
 beforeEach(async () => {
   globalThis.localStorage.clear();
   await i18n.changeLanguage('en');
-  useCalendar.setState({ locale: EN_US, selected: null, starred: {} });
+  useCalendar.setState({
+    locale: EN_US,
+    view: 'month',
+    anchor: today(),
+    selected: null,
+    starred: {},
+  });
 });
 
 describe('calendar shell', () => {
@@ -67,6 +74,32 @@ describe('calendar shell', () => {
 
     fireEvent.keyDown(grid, { key: 'ArrowDown' });
     expect(grid).toHaveAttribute('aria-activedescendant', `day-${addDays(tomorrow, 7)}`);
+  });
+
+  it('week view shows exactly the seven days and steps by a week', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: 'Week' }));
+
+    const cells = screen.getAllByRole('gridcell');
+    expect(cells).toHaveLength(7);
+    expect(screen.getByRole('gridcell', { current: 'date' })).toBeInTheDocument();
+
+    const firstBefore = cells[0]?.id.replace('day-', '') ?? '';
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    const firstAfter = screen.getAllByRole('gridcell')[0]?.id.replace('day-', '') ?? '';
+    expect(firstAfter).toBe(addDays(firstBefore, 7));
+  });
+
+  it('day view shows the day detail full-width (no sidebar hint, no grid)', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: 'Day' }));
+
+    expect(screen.queryByRole('grid')).not.toBeInTheDocument();
+    expect(screen.queryByText('Select a day to see details.')).not.toBeInTheDocument();
+    expect(screen.getByText('Nothing planned yet.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Star this day' })).toBeInTheDocument();
   });
 
   it('degrades quietly when persistence fails: the star still works in-memory (L5)', async () => {

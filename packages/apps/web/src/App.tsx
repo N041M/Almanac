@@ -1,13 +1,14 @@
 import { useTranslation } from 'react-i18next';
 import { EN_US, CS_CZ } from '@almanac/core';
 import { useCalendar } from './state/store';
-import { MonthView } from './calendar/MonthView';
+import { CalendarView } from './calendar/CalendarView';
 import { DayPanel } from './calendar/DayPanel';
 
 export function App() {
   const { t } = useTranslation();
   const locale = useCalendar((s) => s.locale);
   const setLocale = useCalendar((s) => s.setLocale);
+  const view = useCalendar((s) => s.view);
 
   return (
     <div className="min-h-screen">
@@ -29,13 +30,21 @@ export function App() {
         </label>
       </header>
 
-      <main className="mx-auto grid max-w-5xl gap-6 p-6 md:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]">
+      <main
+        className={[
+          'mx-auto grid max-w-5xl gap-6 p-6',
+          // Day view IS the day detail — no sidebar duplicating it.
+          view === 'day' ? '' : 'md:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]',
+        ].join(' ')}
+      >
         <div className="rounded-2xl border border-line bg-surface-raised p-4 shadow-sm">
-          <MonthView />
+          <CalendarView />
         </div>
-        <aside className="rounded-2xl border border-line bg-surface-raised p-4 shadow-sm">
-          <DayPanel />
-        </aside>
+        {view !== 'day' && (
+          <aside className="rounded-2xl border border-line bg-surface-raised p-4 shadow-sm">
+            <DayPanel />
+          </aside>
+        )}
       </main>
     </div>
   );

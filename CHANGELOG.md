@@ -9,6 +9,18 @@ Entries are grouped by **build phase** (design doc §13) until v1.
 
 ## [Unreleased]
 
+### Week + day views (Phase 2 complete on the web renderer)
+- **View switcher** (Month / Week / Day segmented control) in the calendar
+  header; nav arrows step by the active view (month / 7 days / 1 day).
+- **Week view**: seven full-height day cells under the same weekday header,
+  `Intl.formatRange` title ("Jun 28 – Jul 4, 2026"), same keyboard model.
+- **Day view**: the day detail full-width (sidebar hidden — no duplication);
+  header carries the full date.
+- Refactor: store anchors on a single `anchor` date + `view`;
+  calendar split into `CalendarView` (header/keyboard/range-loading) +
+  `MonthGrid` + `WeekGrid` + shared `DayCell` + `DayDetail` + `ViewSwitcher`
+  (one concern per file). 51 tests.
+
 ### UI foundation — the visual base for all future UI
 - **Semantic design tokens** (`index.css` `@theme`): surface/raised, ink
   (3 weights), line, accent (+ soft, + on-accent ink), mark — module UIs use

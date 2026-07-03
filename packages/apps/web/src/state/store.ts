@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import {
+  addDays,
   addMonths,
   createDayStore,
   getSlice,
@@ -16,43 +17,44 @@ import i18n from '../i18n/config';
 // writes with modified-at so slice data is sync-ready from day one (D4).
 const dayStore = createDayStore(createLocalStoragePort(), systemClock);
 
-function anchorISO(year: number, month: number): ISODate {
-  return `${year}-${String(month).padStart(2, '0')}-01`;
-}
+export type CalendarView = 'month' | 'week' | 'day';
+
+/** How far one prev/next step moves the anchor, per view. */
+const STEP: Record<CalendarView, (anchor: ISODate, dir: 1 | -1) => ISODate> = {
+  month: (anchor, dir) => addMonths(anchor, dir),
+  week: (anchor, dir) => addDays(anchor, 7 * dir),
+  day: (anchor, dir) => addDays(anchor, dir),
+};
 
 interface CalendarState {
   locale: Locale;
-  /** Anchor month (1–12) of the visible grid. */
-  year: number;
-  month: number;
+  view: CalendarView;
+  /** The date the visible range is built around (its month / week / day). */
+  anchor: ISODate;
   selected: ISODate | null;
-  /** Starred dates for the visible grid (demo slice). */
+  /** Starred dates for the visible range (demo slice). */
   starred: Readonly<Record<ISODate, boolean>>;
 
   setLocale: (locale: Locale) => void;
-  prevMonth: () => void;
-  nextMonth: () => void;
+  setView: (view: CalendarView) => void;
+  prev: () => void;
+  next: () => void;
   goToday: () => void;
   select: (date: ISODate) => void;
   toggleStar: (date: ISODate) => Promise<void>;
-  /** Load the slices for the visible grid range. Driven by the view's effect
-   *  (it owns the grid) — actions only change state, they don't load. */
+  /** Load the slices for the visible range. Driven by the view's effect
+   *  (it owns the range) — actions only change state, they don't load. */
   loadRange: (first: ISODate, last: ISODate) => Promise<void>;
 }
 
 export const useCalendar = create<CalendarState>((set, get) => {
-  const start = today();
-  // Guards against out-of-order async loads clobbering the current month.
+  // Guards against out-of-order async loads clobbering the current range.
   let loadToken = 0;
-
-  function setMonth(anchor: ISODate): void {
-    set({ year: Number(anchor.slice(0, 4)), month: Number(anchor.slice(5, 7)) });
-  }
 
   return {
     locale: EN_US,
-    year: Number(start.slice(0, 4)),
-    month: Number(start.slice(5, 7)),
+    view: 'month',
+    anchor: today(),
     selected: null,
     starred: {},
 
@@ -60,21 +62,16 @@ export const useCalendar = create<CalendarState>((set, get) => {
       void i18n.changeLanguage(locale.language);
       set({ locale });
     },
-    prevMonth: () => setMonth(addMonths(anchorISO(get().year, get().month), -1)),
-    nextMonth: () => setMonth(addMonths(anchorISO(get().year, get().month), 1)),
+    setView: (view) => set({ view }),
+    prev: () => set((s) => ({ anchor: STEP[s.view](s.anchor, -1) })),
+    next: () => set((s) => ({ anchor: STEP[s.view](s.anchor, 1) })),
     goToday: () => {
       const t = today();
-      setMonth(t);
-      set({ selected: t });
+      set({ anchor: t, selected: t });
     },
-    // Selecting also aligns the visible month, so clicking a lead/trail day or
-    // arrowing past a month edge navigates naturally.
-    select: (date) =>
-      set({
-        selected: date,
-        year: Number(date.slice(0, 4)),
-        month: Number(date.slice(5, 7)),
-      }),
+    // Selecting also re-anchors the range, so clicking a lead/trail day or
+    // arrowing past a month/week edge navigates naturally.
+    select: (date) => set({ selected: date, anchor: date }),
 
     toggleStar: async (date) => {
       const next = !(get().starred[date] ?? false);
