@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  addDays,
   buildMonthGrid,
   bcp47,
   dateFromISO,
@@ -9,6 +10,7 @@ import {
   type Weekday,
 } from '@almanac/core';
 import { useCalendar } from '../state/store';
+import { Button } from '../ui/Button';
 import { today } from '../clock';
 
 /** Localized short weekday labels, ordered from the locale's week-start. */
@@ -31,6 +33,13 @@ function useToday(): string {
   }, []);
   return value;
 }
+
+const ARROW_DELTAS: Record<string, number> = {
+  ArrowLeft: -1,
+  ArrowRight: 1,
+  ArrowUp: -7,
+  ArrowDown: 7,
+};
 
 export function MonthView() {
   const { t } = useTranslation();
@@ -69,41 +78,49 @@ export function MonthView() {
     if (first !== undefined && last !== undefined) void loadRange(first, last);
   }, [first, last, loadRange]);
 
-  const title = formatters.title.format(dateFromISO(`${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-01`));
+  const title = formatters.title.format(
+    dateFromISO(`${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-01`),
+  );
+
+  // Roving selection: the grid is one tab stop; arrows move the selected day
+  // (aria-activedescendant), crossing month edges as needed.
+  function onGridKeyDown(e: React.KeyboardEvent<HTMLDivElement>): void {
+    const delta = ARROW_DELTAS[e.key];
+    if (delta === undefined) return;
+    e.preventDefault();
+    select(selected === null ? todayDate : addDays(selected, delta));
+  }
 
   return (
-    <section aria-label={t('title')} className="mx-auto max-w-2xl">
-      <div className="mb-2 flex items-center justify-between">
-        <button
-          aria-label={t('prevMonth')}
-          onClick={prevMonth}
-          className="rounded px-2 py-1 hover:bg-neutral-200"
-        >
+    <section aria-label={t('title')}>
+      <div className="mb-3 flex items-center justify-between">
+        <Button variant="ghost" aria-label={t('prevMonth')} onClick={prevMonth}>
           ‹
-        </button>
-        <div className="flex items-center gap-2">
-          <h2 className="text-base font-medium capitalize">{title}</h2>
-          <button onClick={goToday} className="rounded border px-2 py-0.5 text-xs">
-            {t('today')}
-          </button>
+        </Button>
+        <div className="flex items-center gap-3">
+          <h2 className="text-base font-semibold capitalize">{title}</h2>
+          <Button onClick={goToday}>{t('today')}</Button>
         </div>
-        <button
-          aria-label={t('nextMonth')}
-          onClick={nextMonth}
-          className="rounded px-2 py-1 hover:bg-neutral-200"
-        >
+        <Button variant="ghost" aria-label={t('nextMonth')} onClick={nextMonth}>
           ›
-        </button>
+        </Button>
       </div>
 
-      <div role="grid" aria-label={t('title')} className="grid grid-cols-7 gap-1 text-sm">
+      <div
+        role="grid"
+        aria-label={title}
+        tabIndex={0}
+        onKeyDown={onGridKeyDown}
+        aria-activedescendant={selected === null ? undefined : `day-${selected}`}
+        className="grid grid-cols-7 gap-1 rounded-xl text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
         {/* `contents` keeps rows in the ARIA tree without breaking the 7-col grid. */}
         <div role="row" className="contents">
           {weekdayLabels(formatters.weekday, locale.weekStartsOn).map((label) => (
             <div
               key={label}
               role="columnheader"
-              className="py-1 text-center text-xs font-medium text-neutral-500"
+              className="py-1.5 text-center text-xs font-medium uppercase tracking-wide text-ink-muted"
             >
               {label}
             </div>
@@ -118,23 +135,32 @@ export function MonthView() {
               return (
                 <button
                   key={cell.date}
+                  id={`day-${cell.date}`}
                   role="gridcell"
+                  tabIndex={-1}
                   aria-label={formatters.cell.format(dateFromISO(cell.date))}
                   aria-current={cell.isToday ? 'date' : undefined}
                   aria-selected={isSelected}
                   onClick={() => select(cell.date)}
                   className={[
-                    'relative aspect-square rounded p-1 text-left align-top',
-                    cell.inMonth ? 'text-neutral-900' : 'text-neutral-300',
-                    cell.isToday ? 'ring-1 ring-blue-500' : '',
-                    isSelected ? 'bg-blue-100' : 'hover:bg-neutral-100',
+                    'relative aspect-square rounded-lg p-1.5 text-left align-top transition-colors',
+                    cell.inMonth ? 'text-ink' : 'text-ink-faint',
+                    cell.isToday ? 'ring-1 ring-accent' : '',
+                    isSelected ? 'bg-accent-soft' : 'hover:bg-accent-soft/50',
                   ].join(' ')}
                 >
-                  <span className="text-xs">{Number(cell.date.slice(8, 10))}</span>
+                  <span
+                    className={[
+                      'text-xs tabular-nums',
+                      cell.isToday ? 'font-semibold text-accent' : '',
+                    ].join(' ')}
+                  >
+                    {Number(cell.date.slice(8, 10))}
+                  </span>
                   {isStarred && (
                     <span
                       aria-label={t('starredLegend')}
-                      className="absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full bg-amber-500"
+                      className="absolute bottom-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-mark"
                       style={{ opacity: intensityForPriority(1) }}
                     />
                   )}

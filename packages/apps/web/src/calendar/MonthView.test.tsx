@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { EN_US } from '@almanac/core';
+import { EN_US, addDays } from '@almanac/core';
 import { App } from '../App';
 import { useCalendar } from '../state/store';
 import i18n from '../i18n/config';
@@ -45,6 +45,28 @@ describe('calendar shell', () => {
     // A starred marker now shows on the grid, read back from storage.
     expect(await screen.findByLabelText('Starred day')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remove star' })).toBeInTheDocument();
+  });
+
+  it('arrow keys drive a roving selection on the grid (keyboard-first)', () => {
+    render(<App />);
+    const grid = screen.getByRole('grid');
+
+    // First arrow press selects today; subsequent presses move day by day.
+    fireEvent.keyDown(grid, { key: 'ArrowRight' });
+    const todayCell = screen.getByRole('gridcell', { current: 'date' });
+    expect(todayCell).toHaveAttribute('aria-selected', 'true');
+    const todayId = todayCell.id.replace('day-', '');
+
+    fireEvent.keyDown(grid, { key: 'ArrowRight' });
+    const tomorrow = addDays(todayId, 1);
+    expect(grid).toHaveAttribute('aria-activedescendant', `day-${tomorrow}`);
+    expect(document.getElementById(`day-${tomorrow}`)).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+
+    fireEvent.keyDown(grid, { key: 'ArrowDown' });
+    expect(grid).toHaveAttribute('aria-activedescendant', `day-${addDays(tomorrow, 7)}`);
   });
 
   it('degrades quietly when persistence fails: the star still works in-memory (L5)', async () => {

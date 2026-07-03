@@ -10,18 +10,18 @@ export function App() {
   const setLocale = useCalendar((s) => s.setLocale);
 
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900">
-      <header className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
-        <h1 className="text-lg font-semibold">{t('title')}</h1>
-        <label className="text-sm text-neutral-600">
-          {t('language')}{' '}
+    <div className="min-h-screen">
+      <header className="flex items-center justify-between border-b border-line px-6 py-3">
+        <h1 className="text-lg font-semibold tracking-tight">{t('title')}</h1>
+        <label className="flex items-center gap-2 text-sm text-ink-muted">
+          {t('language')}
           <select
             aria-label={t('language')}
             value={locale.language}
             onChange={(e) => {
               setLocale(e.target.value === 'cs' ? CS_CZ : EN_US);
             }}
-            className="rounded border border-neutral-300 px-1 py-0.5"
+            className="rounded-lg border border-line bg-surface-raised px-2 py-1 text-ink focus-visible:outline-2 focus-visible:outline-accent"
           >
             <option value="en">English</option>
             <option value="cs">Čeština</option>
@@ -29,9 +29,11 @@ export function App() {
         </label>
       </header>
 
-      <main className="grid gap-6 p-4 md:grid-cols-[2fr_1fr]">
-        <MonthView />
-        <aside className="border-t border-neutral-200 pt-4 md:border-l md:border-t-0 md:pl-4 md:pt-0">
+      <main className="mx-auto grid max-w-5xl gap-6 p-6 md:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]">
+        <div className="rounded-2xl border border-line bg-surface-raised p-4 shadow-sm">
+          <MonthView />
+        </div>
+        <aside className="rounded-2xl border border-line bg-surface-raised p-4 shadow-sm">
           <DayPanel />
         </aside>
       </main>

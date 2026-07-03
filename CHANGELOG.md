@@ -9,6 +9,21 @@ Entries are grouped by **build phase** (design doc §13) until v1.
 
 ## [Unreleased]
 
+### UI foundation — the visual base for all future UI
+- **Semantic design tokens** (`index.css` `@theme`): surface/raised, ink
+  (3 weights), line, accent (+ soft, + on-accent ink), mark — module UIs use
+  tokens only, never raw colors. **Light + dark** follow the system preference
+  (verified via headless-Chrome screenshots in both schemes).
+- **`ui/` primitives**: shared `Button` (solid/outline/ghost) with consistent
+  focus-visible/hover states.
+- **App shell**: header + two-card layout (calendar + day panel) on tokens.
+- **Month view polish**: accented today, selection wash, tabular date numerals,
+  uppercase weekday labels; **keyboard-first grid** — one tab stop, arrow keys
+  move a roving selection (`aria-activedescendant`), crossing month edges.
+- Selecting a lead/trail day (or arrowing past an edge) navigates months.
+- Day panel: localized date heading, module-content slot with an actionable
+  empty state ("Nothing planned yet"), star action. 49 tests.
+
 ### D4 — L6 relaxed; sync architecture pinned
 - **Decision** (docs/DECISIONS.md D4): local store stays (offline + instant UI)
   but the server copy is durable once sync exists; per-slice **LWW revision

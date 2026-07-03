@@ -67,7 +67,14 @@ export const useCalendar = create<CalendarState>((set, get) => {
       setMonth(t);
       set({ selected: t });
     },
-    select: (date) => set({ selected: date }),
+    // Selecting also aligns the visible month, so clicking a lead/trail day or
+    // arrowing past a month edge navigates naturally.
+    select: (date) =>
+      set({
+        selected: date,
+        year: Number(date.slice(0, 4)),
+        month: Number(date.slice(5, 7)),
+      }),
 
     toggleStar: async (date) => {
       const next = !(get().starred[date] ?? false);

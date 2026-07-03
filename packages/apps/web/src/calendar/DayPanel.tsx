@@ -1,8 +1,12 @@
 import { useTranslation } from 'react-i18next';
 import { bcp47, dateFromISO } from '@almanac/core';
 import { useCalendar } from '../state/store';
+import { Button } from '../ui/Button';
 
-/** Detail panel for the selected day. Empty state is actionable, not blank (L5). */
+/**
+ * Detail panel for the selected day — the surface future module contributions
+ * render into. Empty states are actionable, never blank (L5/§9).
+ */
 export function DayPanel() {
   const { t } = useTranslation();
   const selected = useCalendar((s) => s.selected);
@@ -11,7 +15,7 @@ export function DayPanel() {
   const toggleStar = useCalendar((s) => s.toggleStar);
 
   if (selected === null) {
-    return <p className="text-sm text-neutral-500">{t('selectDay')}</p>;
+    return <p className="text-sm text-ink-muted">{t('selectDay')}</p>;
   }
 
   const label = new Intl.DateTimeFormat(bcp47(locale), {
@@ -24,14 +28,13 @@ export function DayPanel() {
   const isStarred = starred[selected] ?? false;
 
   return (
-    <div className="space-y-2">
-      <h3 className="font-medium capitalize">{label}</h3>
-      <button
-        onClick={() => void toggleStar(selected)}
-        className="rounded border px-2 py-1 text-sm hover:bg-neutral-100"
-      >
+    <div className="space-y-4">
+      <h3 className="font-semibold capitalize">{label}</h3>
+      {/* Module contributions for the day will list here (Phase 4+). */}
+      <p className="text-sm text-ink-muted">{t('noEntries')}</p>
+      <Button onClick={() => void toggleStar(selected)}>
         {isStarred ? t('unstar') : t('star')}
-      </button>
+      </Button>
     </div>
   );
 }
