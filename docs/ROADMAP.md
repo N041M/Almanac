@@ -16,7 +16,7 @@ Status: ✅ done · 🔨 in progress · — planned.
 | 0 | Scaffold | workspaces, boundary lint, strict TS, CI, i18n rig | ✅ |
 | 1 | Core | day record/store, calendar model, recurrence v1, units, registry, i18n, ports | ✅ |
 | 2 | Calendar shell | tokens/dark UI, month/week/day views, keyboard grid, EN+CS, localStorage + SQLite `StoragePort` (Tauri) | ✅ |
-| 3 | Food kernel | Ingredient/Recipe/NutritionFacts; OFF adapter + caching + degradation | — |
+| 3 | Food kernel | Ingredient/Recipe/NutritionFacts; OFF adapter + caching + degradation | ✅ |
 | 4 | Meals module | §6 engine exactly, TDD + statistical suite; **module-manifest seam defined first** | — |
 | 5 | Calendar core v2 | recurrence v2 · timed/multi-day/timezone events · `NotificationPort` · hour-grid + agenda views · drag & drop · undo · settings surface · vault export/import | — |
 | 6 | Tasks module | tasks/events/habits on v2 primitives; NL quick entry; command palette; notifications wired | — |
