@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@almanac/core": "workspace:*",
+    "@almanac/food": "workspace:*",
+    "@almanac/meals": "workspace:*",
     "@tauri-apps/plugin-sql": "^2.2.0",
     "i18next": "^24.2.1",
     "react": "^19.0.0",
