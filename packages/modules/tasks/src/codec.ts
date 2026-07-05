@@ -76,6 +76,7 @@ function decodeBase(raw: Record<string, unknown>): TaskItemBase | null {
     contexts: strings(raw['contexts']),
     ...(typeof raw['notes'] === 'string' && { notes: raw['notes'] }),
     ...(typeof raw['calendarId'] === 'string' && { calendarId: raw['calendarId'] }),
+    ...(typeof raw['listId'] === 'string' && { listId: raw['listId'] }),
     ...(typeof raw['place'] === 'string' && { place: raw['place'] }),
     ...(priority !== undefined ? { priority } : {}),
     ...(raw['transparency'] === 'free' ? { transparency: 'free' as const } : {}),

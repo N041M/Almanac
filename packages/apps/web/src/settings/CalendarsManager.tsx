@@ -73,13 +73,13 @@ export function CalendarsManager() {
           className="min-w-36 flex-1 rounded-lg border border-line bg-surface-raised px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-accent"
         />
         <div role="radiogroup" aria-label={t('calendarColor')} className="flex gap-1">
-          {HUES.map((h) => (
+          {HUES.map((h, i) => (
             <button
               key={h}
               type="button"
               role="radio"
               aria-checked={hue === h}
-              aria-label={`hue-${h}`}
+              aria-label={t('colorOption', { number: i + 1 })}
               onClick={() => setHue(h)}
               className={[
                 'h-5 w-5 rounded-full border-2',

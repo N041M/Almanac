@@ -18,6 +18,8 @@ export interface TaskItemBase {
   notes?: string;
   /** Multiple calendars (D7): color/visibility live on the calendar, not here. */
   calendarId?: string;
+  /** Which to-do list holds this item; absent = the default list (Inbox). */
+  listId?: string;
   /** User-defined `#categories` — visibility-toggleable module state. */
   categories: string[];
   /** The `@home/@work/@store` axis (§8) — context, not a physical place. */

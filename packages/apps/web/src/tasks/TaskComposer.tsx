@@ -21,7 +21,7 @@ function minutesLabel(minutes: number): string {
  * description. Pickers win over parsed text; everything is optional and the
  * add never blocks (L5).
  */
-export function TaskComposer() {
+export function TaskComposer({ listId }: { listId?: string }) {
   const { t } = useTranslation('tasks');
   const quickAdd = useTasks((s) => s.quickAdd);
   const items = useTasks((s) => s.items);
@@ -55,6 +55,7 @@ export function TaskComposer() {
     const [h, m] = time.split(':');
     void quickAdd(text, {
       kind,
+      ...(listId !== undefined && listId !== 'inbox' && { listId }),
       ...(isValidISODate(date) && { date: date as ISODate }),
       ...(time !== '' && { minutes: Number(h) * 60 + Number(m ?? 0) }),
       ...(priority !== undefined && { priority }),

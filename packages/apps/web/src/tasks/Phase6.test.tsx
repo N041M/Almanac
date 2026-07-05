@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { EN_US, addDays } from '@almanac/core';
+import { EN_US, addDays, startOfWeek } from '@almanac/core';
 import type { Task } from '@almanac/tasks';
 import { App } from '../App';
 import { useCalendar } from '../state/store';
@@ -9,6 +9,7 @@ import { useCalendars, DEFAULT_CALENDAR_ID } from '../state/calendars';
 import { useMeals } from '../state/meals';
 import { useSettings } from '../state/settings';
 import { useTasks, syncReminders } from '../state/tasks';
+import { DEFAULT_LIST_ID, useTaskLists } from '../state/task-lists';
 import { useUndo } from '../state/undo';
 import { today } from '../clock';
 import i18n from '../i18n/config';
@@ -28,6 +29,7 @@ beforeEach(async () => {
   useMeals.setState({
     loaded: false,
     loading: false,
+    viewWeek: startOfWeek(today(), 1),
     recipes: {},
     ingredients: {},
     items: [],
@@ -51,6 +53,7 @@ beforeEach(async () => {
     remindersEnabled: false,
     reminderOffsetMin: 10,
   });
+  useTaskLists.setState({ loaded: false, lists: [{ id: DEFAULT_LIST_ID, name: '' }] });
   useUndo.setState({ stack: [], toastKey: null });
 });
 afterEach(() => {
@@ -100,6 +103,45 @@ describe('P6 — multiple calendars', () => {
     expect(useCalendars.getState().calendarOf('deleted-calendar').id).toBe(DEFAULT_CALENDAR_ID);
     const map = useTasks.getState().occurrences(today(), today());
     expect(map.size).toBe(0); // no due date — but nothing crashed, item visible in lists
+  });
+});
+
+describe('P6 — multiple to-do lists', () => {
+  it('creates lists, files tasks into the active one, moves between lists, deletes back to Inbox', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: 'Tasks' }));
+    await screen.findByLabelText(/What needs doing/);
+
+    // New "Groceries" list; make it active; add a task into it.
+    await user.type(screen.getByLabelText('New list…'), 'Groceries{Enter}');
+    await user.click(await screen.findByRole('button', { name: 'Groceries' }));
+    await user.type(screen.getByLabelText(/What needs doing/), 'buy milk{Enter}');
+    await screen.findByText('buy milk');
+    const milkId = useTasks.getState().items[0]?.id ?? '';
+    const groceriesId = useTaskLists.getState().lists.find((l) => l.name === 'Groceries')?.id;
+    expect(useTasks.getState().items[0]?.listId).toBe(groceriesId);
+
+    // Inbox shows nothing; All shows it.
+    await user.click(screen.getByRole('button', { name: 'Inbox' }));
+    expect(screen.queryByText('buy milk')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'All' }));
+    expect(await screen.findByText('buy milk')).toBeInTheDocument();
+
+    // Move it to Inbox via the row select.
+    await user.selectOptions(screen.getByLabelText('Move buy milk to list'), 'inbox');
+    expect(useTasks.getState().items[0]?.listId).toBeUndefined();
+    await user.click(screen.getByRole('button', { name: 'Inbox' }));
+    expect(await screen.findByText('buy milk')).toBeInTheDocument();
+
+    // Move it back, then delete the list: the task degrades to Inbox (L5).
+    await useTasks.getState().moveToList(milkId, groceriesId ?? '');
+    await user.click(screen.getByRole('button', { name: 'Groceries' }));
+    await user.click(screen.getByRole('button', { name: 'Delete list' }));
+    expect(useTaskLists.getState().lists).toHaveLength(1); // Inbox only
+    await user.click(screen.getByRole('button', { name: 'Inbox' }));
+    expect(await screen.findByText('buy milk')).toBeInTheDocument(); // still here
+    expect(useTasks.getState().items).toHaveLength(1);
   });
 });
 

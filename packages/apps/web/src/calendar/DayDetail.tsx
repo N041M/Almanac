@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { bcp47, dateFromISO, type ISODate } from '@almanac/core';
 import { useCalendar } from '../state/store';
@@ -27,6 +27,8 @@ export function DayDetail({
   // contributes nothing (L5).
   const load = useMeals((s) => s.load);
   const loadDayMeal = useMeals((s) => s.loadDayMeal);
+  const plan = useMeals((s) => s.plan);
+  const reroll = useMeals((s) => s.reroll);
   const copyMeal = useMeals((s) => s.copyMeal);
   const pasteMeal = useMeals((s) => s.pasteMeal);
   const hasClipboard = useMeals((s) => s.mealClipboard !== null);
@@ -41,6 +43,8 @@ export function DayDetail({
   });
 
   const loadTasks = useTasks((s) => s.load);
+  const quickAdd = useTasks((s) => s.quickAdd);
+  const [taskText, setTaskText] = useState('');
   const toggleDone = useTasks((s) => s.toggleDone);
   const occurrences = useTasks((s) => s.occurrences);
   useTasks((s) => s.items); // re-render on task changes
@@ -100,10 +104,35 @@ export function DayDetail({
       {plannedMeal === undefined && dayTasks.length === 0 && (
         <p className="text-sm text-ink-muted">{t('noEntries')}</p>
       )}
+      {/* Day actions live here too — no tab hunt needed (P6 UX). */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (taskText.trim() === '') return;
+          void quickAdd(taskText, { date });
+          setTaskText('');
+        }}
+      >
+        <input
+          aria-label={t('tasks:addForDay')}
+          placeholder={t('tasks:addForDay')}
+          value={taskText}
+          onChange={(e) => setTaskText(e.target.value)}
+          className="w-full rounded-lg border border-line bg-surface-raised px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-accent"
+        />
+      </form>
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => void toggleStar(date)}>
           {isStarred ? t('unstar') : t('star')}
         </Button>
+        {(() => {
+          const index = plan.findIndex((e) => e.date === date);
+          const entry = index === -1 ? undefined : plan[index];
+          if (entry?.recipeId == null || entry.locked) return null;
+          return (
+            <Button onClick={() => void reroll(index)}>{t('meals:rerollDay')}</Button>
+          );
+        })()}
         {plannedMeal !== undefined && (
           <Button onClick={() => copyMeal(date)}>{t('meals:copyMeal')}</Button>
         )}

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { EN_US } from '@almanac/core';
+import { EN_US, startOfWeek } from '@almanac/core';
 import { App } from '../App';
 import { useCalendar } from '../state/store';
 import { useMeals } from '../state/meals';
@@ -24,6 +24,7 @@ beforeEach(async () => {
   useMeals.setState({
     loaded: false,
     loading: false,
+    viewWeek: startOfWeek(today(), 1),
     recipes: {},
     ingredients: {},
     items: [],
@@ -382,14 +383,88 @@ describe('meals UI', () => {
     expect(after?.locked).toBe(true);
   });
 
-  it('variety is three presets; picking one persists the engine value', async () => {
+  it('variety is a plain dropdown; picking persists the engine value', async () => {
     const user = userEvent.setup();
     await openMeals(user);
-    expect(screen.getByRole('radio', { name: 'Balanced' })).toBeChecked();
-    await user.click(screen.getByRole('radio', { name: 'Surprising' }));
-    expect(screen.getByRole('radio', { name: 'Surprising' })).toBeChecked();
+    const select = screen.getByRole('combobox', { name: 'Variety' });
+    expect(select).toHaveValue('0.5'); // Balanced is the default
+    await user.selectOptions(select, '0.85');
     expect(useMeals.getState().settings?.variety).toBe(0.85);
     expect(globalThis.localStorage.getItem('meals:settings')).toContain('0.85');
+  });
+
+  it('week navigation: browse other weeks, come home with "This week"', async () => {
+    const user = userEvent.setup();
+    await openMeals(user);
+    await addMeal(user, 'Goulash');
+    await user.click(screen.getByRole('button', { name: 'Generate week' }));
+    expect(screen.queryAllByText('No meal planned')).toHaveLength(0);
+
+    await user.click(screen.getByRole('button', { name: 'Previous week' }));
+    expect(await screen.findAllByText('No meal planned')).toHaveLength(7);
+
+    await user.click(screen.getByRole('button', { name: 'This week' }));
+    await waitFor(() => {
+      expect(screen.queryAllByText('No meal planned')).toHaveLength(0);
+    });
+  });
+
+  it('generate fills the *viewed* week, not just the current one', async () => {
+    const user = userEvent.setup();
+    await openMeals(user);
+    await addMeal(user, 'Goulash');
+    await user.click(screen.getByRole('button', { name: 'Later week' }));
+    await user.click(screen.getByRole('button', { name: 'Generate week' }));
+    const { plan, viewWeek } = useMeals.getState();
+    expect(plan[0]?.date).toBe(viewWeek);
+    expect(plan.every((e) => e.recipeId !== null)).toBe(true);
+  });
+
+  it('estimate-all guesses every factless ingredient; a no-hit shows "No match"', async () => {
+    const user = userEvent.setup();
+    await openMeals(user);
+    await addMeal(user, 'Goulash');
+    const toggle = screen.getByRole('button', { name: 'Ingredients (0)' });
+    await user.click(toggle);
+    // Offline stub: both ingredients land factless.
+    await user.type(screen.getByLabelText('Ingredient'), 'Beef');
+    await user.type(screen.getByLabelText('Amount'), '400');
+    await user.click(screen.getByRole('button', { name: 'Add ingredient' }));
+    await user.type(screen.getByLabelText('Ingredient'), 'Unobtainium');
+    await user.type(screen.getByLabelText('Amount'), '10');
+    await user.click(screen.getByRole('button', { name: 'Add ingredient' }));
+
+    // Back online: Beef matches, Unobtainium finds nothing.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve(
+              decodeURIComponent(String(url)).toLowerCase().includes('beef')
+                ? {
+                    products: [
+                      { product_name: 'Beef', code: '1', nutriments: { 'energy-kcal_100g': 250 } },
+                    ],
+                  }
+                : { products: [] },
+            ),
+        }),
+      ),
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Estimate nutrition for all ingredients' }),
+    );
+
+    // Beef got facts -> the per-serving estimate appears; Unobtainium says so
+    // (the "Try again" retry only renders in the tried-and-empty state).
+    expect(await screen.findByText(/500 kcal/)).toBeInTheDocument();
+    // the no-hit line offers a labelled retry ("Try again" text, per-line name)
+    expect(
+      await screen.findByRole('button', { name: 'Guess nutrition for Unobtainium' }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('No match').length).toBeGreaterThan(0);
   });
 
   it('meals switch language with the app (module namespace rides the manifest, L7)', async () => {

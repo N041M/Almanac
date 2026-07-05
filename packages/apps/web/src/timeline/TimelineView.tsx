@@ -17,7 +17,7 @@ export function TimelineView({ days, todayDate }: { days: ISODate[]; todayDate: 
   const select = useCalendar((s) => s.select);
   const selected = useCalendar((s) => s.selected);
   const timeFormat = useSettings((s) => s.timeFormat);
-  const { chipFor, onDropEntry } = useDayChips();
+  const { chipFor, onDropEntry } = useDayChips(days);
 
   const tag = bcp47(locale);
   const dayFormat = new Intl.DateTimeFormat(tag, {

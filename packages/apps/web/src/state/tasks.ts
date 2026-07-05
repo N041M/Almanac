@@ -39,6 +39,8 @@ export interface QuickAddOverrides {
   tags?: string[];
   notes?: string;
   calendarId?: string;
+  /** Which to-do list the entry files into; absent = Inbox. */
+  listId?: string;
   /** 'event' turns the entry into a calendar event (all-day, or timed when a time is set). */
   kind?: 'task' | 'event';
 }
@@ -57,6 +59,8 @@ interface TasksState {
   quickAdd: (text: string, picked?: QuickAddOverrides) => Promise<void>;
   toggleDone: (id: string) => Promise<void>;
   removeItem: (id: string) => Promise<void>;
+  /** Move an item to another to-do list (Inbox = clear the field). */
+  moveToList: (id: string, listId: string) => Promise<void>;
   /** Everything in the window, keyed by date — for grids/agenda/day detail. */
   occurrences: (start: ISODate, end: ISODate) => Map<ISODate, DayOccurrence[]>;
 }
@@ -107,9 +111,14 @@ export const useTasks = create<TasksState>((set, get) => {
     load: async () => {
       if (get().loaded || get().loading) return;
       set({ loading: true });
-      const items = await tasksStore.list();
-      set({ loaded: true, loading: false, items });
-      syncReminders(items);
+      try {
+        const items = await tasksStore.list();
+        set({ loaded: true, items });
+        syncReminders(items);
+      } finally {
+        // A failed load must not brick the tab behind a stuck guard (L5).
+        set({ loading: false });
+      }
     },
 
     quickAdd: async (text, picked = {}) => {
@@ -141,6 +150,7 @@ export const useTasks = create<TasksState>((set, get) => {
         categories,
         contexts,
         ...(picked.calendarId !== undefined && { calendarId: picked.calendarId }),
+        ...(picked.listId !== undefined && { listId: picked.listId }),
         ...(notes !== undefined && notes !== '' && { notes }),
         ...(priority !== undefined && { priority }),
       };
@@ -154,15 +164,12 @@ export const useTasks = create<TasksState>((set, get) => {
           when:
             minutes === undefined
               ? { allDay: eventDate }
-              : {
+              : (() => {
                   // Timed: one hour from the given wall-clock time, as an
                   // absolute instant in the viewer's zone (5.2 contract).
-                  span: {
-                    startUtc: wallClockToUtc(eventDate, minutes),
-                    endUtc: wallClockToUtc(eventDate, minutes) + 3_600_000,
-                    zone: viewerZone,
-                  },
-                },
+                  const startUtc = wallClockToUtc(eventDate, minutes);
+                  return { span: { startUtc, endUtc: startUtc + 3_600_000, zone: viewerZone } };
+                })(),
         };
       } else {
         task = {
@@ -193,6 +200,23 @@ export const useTasks = create<TasksState>((set, get) => {
       await quietly(() => tasksStore.save(next));
       useUndo.getState().push({
         labelKey: item.doneAt === null ? 'tasks:done' : 'tasks:reopen',
+        apply: async () => {
+          replace(get().items.map((i) => (i.id === id ? item : i)));
+          await quietly(() => tasksStore.save(item));
+        },
+      });
+    },
+
+    moveToList: async (id, listId) => {
+      const item = get().items.find((i) => i.id === id);
+      if (item === undefined) return;
+      const next = { ...item };
+      if (listId === '' || listId === 'inbox') delete next.listId;
+      else next.listId = listId;
+      replace(get().items.map((i) => (i.id === id ? next : i)));
+      await quietly(() => tasksStore.save(next));
+      useUndo.getState().push({
+        labelKey: 'tasks:movedList',
         apply: async () => {
           replace(get().items.map((i) => (i.id === id ? item : i)));
           await quietly(() => tasksStore.save(item));

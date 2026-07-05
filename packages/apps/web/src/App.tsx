@@ -85,9 +85,12 @@ export function App() {
       onClick={() => setScreen(target)}
       aria-current={screen === target ? 'page' : undefined}
       className={[
-        'rounded-lg px-3 py-1.5 text-sm transition-colors',
+        // Quiet by design: the calendar is the app; tabs are side rooms.
+        'rounded px-2 py-1 text-sm transition-colors',
         'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
-        screen === target ? 'bg-accent text-accent-ink' : 'text-ink-muted hover:bg-accent-soft/60',
+        screen === target
+          ? 'font-medium text-accent underline decoration-2 underline-offset-8'
+          : 'text-ink-muted hover:text-ink',
       ].join(' ')}
     >
       {label}

@@ -10,8 +10,10 @@ export interface DayMark {
   starred: boolean;
 }
 
+export const DAY_MARK_NAMESPACE = 'demo';
+
 export const dayMarkCodec: SliceCodec<DayMark> = {
-  namespace: 'demo',
+  namespace: DAY_MARK_NAMESPACE,
   version: 1,
   default: () => ({ starred: false }),
   decode: (raw) => {

@@ -123,8 +123,26 @@ export function MealIngredientsEditor({ recipeId }: { recipeId: string }) {
         />
       </label>
 
+      <EstimateAll recipeId={recipeId} />
       <DerivedNutrition recipeId={recipeId} />
     </div>
+  );
+}
+
+/** One button to guess every factless ingredient in the meal at once. */
+function EstimateAll({ recipeId }: { recipeId: string }) {
+  const { t } = useTranslation('meals');
+  const recipe = useMeals((s) => s.recipes[recipeId]);
+  const ingredients = useMeals((s) => s.ingredients);
+  const guessAllNutrition = useMeals((s) => s.guessAllNutrition);
+  const factless = (recipe?.ingredients ?? []).filter(
+    (line) => ingredients[line.ingredientId]?.nutrition === undefined,
+  );
+  if (factless.length === 0) return null;
+  return (
+    <Button variant="ghost" className="text-xs" onClick={() => void guessAllNutrition(recipeId)}>
+      {t('estimateAll')}
+    </Button>
   );
 }
 
@@ -143,6 +161,22 @@ function NutritionMatch({ ingredientId, name }: { ingredientId: string; name: st
   const guessNutrition = useMeals((s) => s.guessNutrition);
   const applyNutrition = useMeals((s) => s.applyNutrition);
 
+  if (choices !== undefined && choices.length === 0) {
+    // Tried and found nothing — say so instead of pretending nothing happened.
+    return (
+      <span className="flex items-center gap-1 text-xs text-ink-muted">
+        {t('noMatch')}
+        <Button
+          variant="ghost"
+          className="text-xs"
+          aria-label={t('guessFor', { name })}
+          onClick={() => void guessNutrition(ingredientId)}
+        >
+          {t('tryAgain')}
+        </Button>
+      </span>
+    );
+  }
   if (choices !== undefined && choices.length > 0) {
     return (
       <select

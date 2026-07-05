@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { EN_US, addDays } from '@almanac/core';
+import { EN_US, addDays, startOfWeek } from '@almanac/core';
 import { App } from '../App';
 import { useCalendar } from '../state/store';
 import { useMeals } from '../state/meals';
@@ -25,6 +25,7 @@ beforeEach(async () => {
   useMeals.setState({
     loaded: false,
     loading: false,
+    viewWeek: startOfWeek(today(), 1),
     recipes: {},
     ingredients: {},
     items: [],

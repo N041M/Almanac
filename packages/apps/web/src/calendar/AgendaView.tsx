@@ -1,11 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import { addDays, bcp47, dateFromISO, getSlice, type ISODate } from '@almanac/core';
 import { MEALS_NAMESPACE, type MealsDaySlice } from '@almanac/meals';
-import type { DayMark } from '../state/day-mark';
-import { useCalendar } from '../state/store';
+import { DAY_MARK_NAMESPACE, type DayMark } from '../state/day-mark';
+import { AGENDA_DAYS, useCalendar } from '../state/store';
 import { useMeals } from '../state/meals';
 import { useTasks } from '../state/tasks';
-import { AGENDA_DAYS } from './CalendarView';
 
 /**
  * The flat upcoming list (5.4): every day in the window with any module
@@ -35,7 +34,7 @@ export function AgendaView({ start }: { start: ISODate }) {
     .map((date) => {
       const day = days[date];
       const meal = day === undefined ? undefined : getSlice<MealsDaySlice>(day, MEALS_NAMESPACE);
-      const starred = day === undefined ? false : getSlice<DayMark>(day, 'demo')?.starred === true;
+      const starred = day === undefined ? false : getSlice<DayMark>(day, DAY_MARK_NAMESPACE)?.starred === true;
       const mealName =
         meal?.recipeId == null
           ? undefined

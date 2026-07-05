@@ -10,7 +10,7 @@ import {
   type ISODate,
   type Weekday,
 } from '@almanac/core';
-import { useCalendar } from '../state/store';
+import { AGENDA_DAYS, useCalendar } from '../state/store';
 import { useMeals } from '../state/meals';
 import { useSettings } from '../state/settings';
 import { Button } from '../ui/Button';
@@ -21,9 +21,6 @@ import { DayDetail } from './DayDetail';
 import { AgendaView } from './AgendaView';
 import { TimelineView } from '../timeline/TimelineView';
 import { today } from '../clock';
-
-/** How many days the agenda looks ahead (incl. today). */
-export const AGENDA_DAYS = 14;
 
 /** Localized short weekday labels, ordered from the locale's week-start. */
 function weekdayLabels(fmt: Intl.DateTimeFormat, weekStartsOn: Weekday): string[] {

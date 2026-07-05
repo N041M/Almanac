@@ -16,7 +16,7 @@ export function MonthGrid({ grid, weekdayLabels, cellLabel, gridLabel, onKeyDown
   const selected = useCalendar((s) => s.selected);
   const starred = useCalendar((s) => s.starred);
   const select = useCalendar((s) => s.select);
-  const { chipFor, tasksFor, onDropEntry } = useDayChips();
+  const { chipFor, tasksFor, onDropEntry } = useDayChips(grid.flat().map((c) => c.date));
 
   return (
     <div

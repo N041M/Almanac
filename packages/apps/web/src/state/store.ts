@@ -11,13 +11,16 @@ import {
   EN_US,
 } from '@almanac/core';
 import { mealsManifest } from '@almanac/meals';
-import { dayMarkCodec, type DayMark } from './day-mark';
+import { DAY_MARK_NAMESPACE, dayMarkCodec, type DayMark } from './day-mark';
 import { dayStore } from './persistence';
 import { useUndo } from './undo';
 import { today } from '../clock';
 import i18n from '../i18n/config';
 
 export type CalendarView = 'month' | 'week' | 'day' | 'agenda' | 'timeline';
+
+/** How many days the agenda looks ahead (incl. today). */
+export const AGENDA_DAYS = 14;
 
 // Every module's day-slice codecs, from their manifests — the calendar reads
 // whole Day records and renders whatever contributions exist (L1: the shell
@@ -118,7 +121,7 @@ export const useCalendar = create<CalendarState>((set, get) => {
       const starred: Record<ISODate, boolean> = {};
       for (const day of loaded) {
         days[day.date] = day;
-        if (getSlice<DayMark>(day, 'demo')?.starred === true) starred[day.date] = true;
+        if (getSlice<DayMark>(day, DAY_MARK_NAMESPACE)?.starred === true) starred[day.date] = true;
       }
       set({ days, starred });
     },

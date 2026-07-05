@@ -1,3 +1,5 @@
+import { foldText } from '@almanac/core';
+
 /**
  * Food-name normalization for catalog identity (§7): two entered names are the
  * same ingredient iff their normalized forms match. Deliberately conservative
@@ -27,11 +29,7 @@ function singularizeEn(word: string): string {
 
 /** Lowercase, diacritic-folded, whitespace-collapsed, per-word singularized. */
 export function normalizeFoodName(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+  return foldText(name.trim())
     .split(/\s+/)
     .map(singularizeEn)
     .join(' ');

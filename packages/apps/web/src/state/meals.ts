@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import {
   createSeededRng,
+  diffDays,
   startOfWeek,
   type ISODate,
   type NutritionResult,
@@ -62,6 +63,8 @@ interface MealsState {
   loaded: boolean;
   /** True while the initial load is in flight (re-entrancy guard). */
   loading: boolean;
+  /** The Monday of the week the meals screen is looking at. */
+  viewWeek: ISODate;
   recipes: Readonly<Record<string, Recipe>>;
   ingredients: Readonly<Record<string, Ingredient>>;
   items: PlanItem[];
@@ -89,6 +92,8 @@ interface MealsState {
   setServings: (recipeId: string, servings: number) => Promise<void>;
   /** Look up OFF matches for an ingredient; auto-applies the first when factless. */
   guessNutrition: (ingredientId: string) => Promise<void>;
+  /** Estimate the whole meal: guess every factless ingredient in the recipe. */
+  guessAllNutrition: (recipeId: string) => Promise<void>;
   /** Apply one of the looked-up matches (or none) as the ingredient's facts. */
   applyNutrition: (ingredientId: string, choice: number | null) => Promise<void>;
   generate: () => Promise<void>;
@@ -96,6 +101,10 @@ interface MealsState {
   toggleLock: (index: number) => Promise<void>;
   commit: () => Promise<void>;
   showBreakdown: (index: number | null) => void;
+  /** Look at another week (any week; storage keeps them all). */
+  goToWeek: (date: ISODate) => Promise<void>;
+  /** Back to this week — the meals tab's default whenever it opens. */
+  resetToCurrentWeek: () => Promise<void>;
   /** Ensure `dayMeals[date]` is loaded for a date outside the plan week. */
   loadDayMeal: (date: ISODate) => Promise<void>;
   /** Copy the meal planned on `date` (from the week plan or any other day). */
@@ -157,6 +166,7 @@ export const useMeals = create<MealsState>((set, get) => {
   return {
   loaded: false,
   loading: false,
+  viewWeek: currentWeekStart(),
   recipes: {},
   ingredients: {},
   items: [],
@@ -173,23 +183,29 @@ export const useMeals = create<MealsState>((set, get) => {
     // both call load() on mount; two concurrent loads would double-seed.
     if (get().loaded || get().loading) return;
     set({ loading: true });
+    try {
     // First run: starter meals so every feature is exercisable immediately.
     // Tests seed explicitly; the flag keeps real deletions deleted.
     if (import.meta.env.MODE !== 'test') {
       await seedStarterMeals(storagePort, catalog, mealsStore);
     }
     const settings = await mealsStore.getSettings(currentWeekStart());
+    const viewWeek = get().viewWeek;
     const [recipeList, ingredientList, items, plan] = await Promise.all([
       catalog.listRecipes(),
       catalog.listIngredients(),
       mealsStore.getItems(),
-      mealsStore.readWeek(settings.weekStart),
+      mealsStore.readWeek(viewWeek),
     ]);
     const recipes: Record<string, Recipe> = {};
     for (const recipe of recipeList) recipes[recipe.id] = recipe;
     const ingredients: Record<string, Ingredient> = {};
     for (const ingredient of ingredientList) ingredients[ingredient.id] = ingredient;
     set({ loaded: true, recipes, ingredients, items, settings, plan });
+    } finally {
+      // A failed load must not brick the tab behind a stuck guard (L5).
+      set({ loading: false });
+    }
   },
 
   addMeal: async (name, tags, preset) => {
@@ -285,6 +301,8 @@ export const useMeals = create<MealsState>((set, get) => {
       return; // offline/error: quietly no choices, ingredient stays factless (L5)
     }
     if (get().ingredients[ingredientId] === undefined) return; // removed meanwhile
+    // An empty result is stored too — the UI shows "no match" instead of
+    // pretending nothing happened (quiet ≠ invisible).
     // When facts already exist (previous session), point the pick at the
     // matching choice so the selector reflects what's actually applied.
     const applied = get().ingredients[ingredientId]?.nutrition?.per100g;
@@ -303,6 +321,16 @@ export const useMeals = create<MealsState>((set, get) => {
     if (matches.length > 0 && applied === undefined) {
       await get().applyNutrition(ingredientId, 0);
     }
+  },
+
+  guessAllNutrition: async (recipeId) => {
+    const recipe = get().recipes[recipeId];
+    if (recipe === undefined) return;
+    const factless = [...new Set(recipe.ingredients.map((line) => line.ingredientId))].filter(
+      (id) => get().ingredients[id] !== undefined && get().ingredients[id]?.nutrition === undefined,
+    );
+    // Sequential on purpose: OFF rate-limits; a personal recipe is a handful.
+    for (const id of factless) await get().guessNutrition(id);
   },
 
   applyNutrition: async (ingredientId, choice) => {
@@ -351,10 +379,16 @@ export const useMeals = create<MealsState>((set, get) => {
   },
 
   generate: async () => {
-    const { items, settings, plan, recipes } = get();
+    const { items, settings, plan, recipes, viewWeek } = get();
     if (settings === null) return;
     const before = plan;
-    const next = generateWeek(items, new Map(Object.entries(recipes)), settings, plan, rng);
+    const next = generateWeek(
+      items,
+      new Map(Object.entries(recipes)),
+      { ...settings, weekStart: viewWeek },
+      plan,
+      rng,
+    );
     // The plan is the truth for its dates now; drop any stale day cache.
     set({ plan: next, breakdownIndex: null, dayMeals: {} });
     await quietly(() => mealsStore.writeWeek(next));
@@ -422,21 +456,52 @@ export const useMeals = create<MealsState>((set, get) => {
   },
 
   commit: async () => {
-    const { items, settings, plan } = get();
+    const { items, settings, plan, viewWeek } = get();
     if (settings === null) return;
     const committed = commitWeek(items, plan);
-    const weekStart = committed.nextWeekStart ?? settings.weekStart;
+    // Committing an older week must never rewind history or the engine's
+    // week lineage: lastServed and weekStart only ever move forward.
+    const mergedItems = committed.items.map((item) => {
+      const prev = items.find((i) => i.recipeId === item.recipeId);
+      if (
+        prev?.lastServed != null &&
+        item.lastServed !== null &&
+        diffDays(item.lastServed, prev.lastServed) > 0
+      ) {
+        return { ...item, lastServed: prev.lastServed };
+      }
+      return item;
+    });
+    const advanced = committed.nextWeekStart ?? viewWeek;
+    const weekStart = diffDays(settings.weekStart, advanced) > 0 ? advanced : settings.weekStart;
     const nextSettings = { ...settings, weekStart };
     // The old week's dates leave the plan; the cache must not answer for them.
-    set({ items: committed.items, settings: nextSettings, breakdownIndex: null, dayMeals: {} });
-    await quietly(() => mealsStore.saveItems(committed.items));
+    set({
+      items: mergedItems,
+      settings: nextSettings,
+      viewWeek: advanced,
+      breakdownIndex: null,
+      dayMeals: {},
+    });
+    await quietly(() => mealsStore.saveItems(mergedItems));
     await quietly(() => mealsStore.saveSettings(nextSettings));
-    set({ plan: await mealsStore.readWeek(weekStart) });
+    set({ plan: await mealsStore.readWeek(advanced) });
     // Deliberately not undoable: committing writes served-history (the only
     // writer, §6.5) — rewinding history silently would lie to the engine.
   },
 
   showBreakdown: (index) => set({ breakdownIndex: index }),
+
+  goToWeek: async (date) => {
+    const viewWeek = startOfWeek(date, 1); // engine weeks are Monday-based (§6.1)
+    // The cache must not answer for dates whose plan coverage just changed.
+    set({ viewWeek, breakdownIndex: null, dayMeals: {} });
+    set({ plan: await mealsStore.readWeek(viewWeek) });
+  },
+
+  resetToCurrentWeek: async () => {
+    await get().goToWeek(today());
+  },
 
   loadDayMeal: async (date) => {
     const { plan, dayMeals } = get();

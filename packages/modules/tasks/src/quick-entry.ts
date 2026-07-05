@@ -1,4 +1,4 @@
-import { addDays, isValidISODate, weekdayOf, type ISODate } from '@almanac/core';
+import { addDays, foldText, isValidISODate, weekdayOf, type ISODate } from '@almanac/core';
 import type { Priority } from '@almanac/core';
 
 /**
@@ -21,13 +21,8 @@ export interface QuickEntry {
   minutes?: number;
 }
 
-/** Lowercase + diacritic-folded — Czech matches with or without háčky. */
-function fold(word: string): string {
-  return word
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-}
+// Diacritic folding comes from the core (shared with food-name matching, L1).
+const fold = foldText;
 
 const WEEKDAYS_EN = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const WEEKDAYS_CS = ['nedele', 'pondeli', 'utery', 'streda', 'ctvrtek', 'patek', 'sobota'];

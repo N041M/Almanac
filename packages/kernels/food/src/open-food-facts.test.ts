@@ -139,6 +139,17 @@ describe('createOpenFoodFactsPort — search', () => {
     expect((await retry.search('obscure'))[0]?.name).toBe('Rye bread');
   });
 
+  it('falls back to the search service when the classic endpoint is throttled', async () => {
+    const fetchJson = vi
+      .fn<FetchJson>()
+      .mockRejectedValueOnce(new Error('HTTP 503')) // cgi/search.pl down
+      .mockResolvedValueOnce({ hits: [PRODUCT_PAYLOAD.product] }); // search-a-licious shape
+    const { port: off } = port(fetchJson);
+    const results = await off.search('bread');
+    expect(results[0]?.name).toBe('Rye bread');
+    expect(fetchJson.mock.calls[1]?.[0]).toContain('search.openfoodfacts.org/search?q=bread');
+  });
+
   it('caches search results per normalized query', async () => {
     const fetchJson = vi.fn<FetchJson>().mockResolvedValue({
       products: [PRODUCT_PAYLOAD.product],

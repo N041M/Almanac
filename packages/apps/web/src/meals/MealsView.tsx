@@ -1,12 +1,13 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { bcp47, dateFromISO } from '@almanac/core';
+import { addDays, bcp47, dateFromISO, isValidISODate, startOfWeek, type ISODate } from '@almanac/core';
 import { useCalendar } from '../state/store';
 import { useMeals } from '../state/meals';
 import { Button } from '../ui/Button';
 import { MealWeekList } from './MealWeekList';
 import { MealBreakdown } from './MealBreakdown';
 import { MealsManager } from './MealsManager';
+import { today } from '../clock';
 
 /**
  * Variety as three honest choices instead of a 0–1 slider; the engine keeps
@@ -26,6 +27,11 @@ function closestVariety(variety: number): number {
   ).value;
 }
 
+/** This Monday — the week the tab always comes back to. */
+function currentMonday(): string {
+  return startOfWeek(today(), 1);
+}
+
 /**
  * The meals module's screen (§6 UX): the 7-day plan with lock/re-roll, the
  * variety control, generate/commit, the "why this pick" panel, and the meal
@@ -38,53 +44,74 @@ export function MealsView() {
   const load = useMeals((s) => s.load);
   const settings = useMeals((s) => s.settings);
   const items = useMeals((s) => s.items);
+  const viewWeek = useMeals((s) => s.viewWeek);
+  const goToWeek = useMeals((s) => s.goToWeek);
+  const resetToCurrentWeek = useMeals((s) => s.resetToCurrentWeek);
   const generate = useMeals((s) => s.generate);
   const commit = useMeals((s) => s.commit);
   const updateSettings = useMeals((s) => s.updateSettings);
 
+  // Opening the tab always lands on the current week (stale context is the
+  // enemy); navigation below moves freely from there.
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load().then(() => resetToCurrentWeek());
+  }, [load, resetToCurrentWeek]);
 
   if (!loaded || settings === null) return null;
 
-  const weekLabel = new Intl.DateTimeFormat(bcp47(locale), {
+  const weekFormat = new Intl.DateTimeFormat(bcp47(locale), {
     day: 'numeric',
-    month: 'long',
+    month: 'short',
     timeZone: 'UTC',
-  }).format(dateFromISO(settings.weekStart));
+  });
+  const weekLabel = weekFormat.formatRange(
+    dateFromISO(viewWeek),
+    dateFromISO(addDays(viewWeek, 6)),
+  );
+  const onCurrentWeek = viewWeek === currentMonday();
 
   return (
     <div className="space-y-6">
       <section className="flex flex-wrap items-center gap-3">
-        <h2 className="mr-auto text-base font-semibold">{t('weekOf', { date: weekLabel })}</h2>
-        {/* Deliberately quiet — a tertiary tweak, not a headline control. */}
-        <div className="flex items-center gap-1 text-xs text-ink-muted">
-          <span className="mr-1">{t('variety')}:</span>
-          <div role="radiogroup" aria-label={t('variety')} className="flex items-center">
-            {VARIETY_PRESETS.map(({ key, value }, i) => {
-              const active = closestVariety(settings.variety) === value;
-              return (
-                <span key={key} className="flex items-center">
-                  {i > 0 && <span aria-hidden="true">·</span>}
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => void updateSettings({ variety: value })}
-                    className={[
-                      'rounded px-1 py-0.5 transition-colors',
-                      'focus-visible:outline-2 focus-visible:outline-accent',
-                      active ? 'font-medium text-accent' : 'hover:text-ink',
-                    ].join(' ')}
-                  >
-                    {t(key)}
-                  </button>
-                </span>
-              );
-            })}
-          </div>
+        <div className="mr-auto flex items-center gap-1">
+          <Button variant="ghost" aria-label={t('prevWeek')} onClick={() => void goToWeek(addDays(viewWeek, -7))}>
+            ‹
+          </Button>
+          <Button variant="ghost" aria-label={t('nextWeekNav')} onClick={() => void goToWeek(addDays(viewWeek, 7))}>
+            ›
+          </Button>
+          <h2 className="text-base font-semibold">{weekLabel}</h2>
+          {!onCurrentWeek && (
+            <Button variant="ghost" onClick={() => void resetToCurrentWeek()}>
+              {t('thisWeek')}
+            </Button>
+          )}
+          <input
+            type="date"
+            aria-label={t('pickWeek')}
+            value={viewWeek}
+            onChange={(e) => {
+              if (isValidISODate(e.target.value)) void goToWeek(e.target.value as ISODate);
+            }}
+            className="rounded-lg border border-line bg-surface-raised px-2 py-1 text-xs text-ink-muted focus-visible:outline-2 focus-visible:outline-accent"
+          />
         </div>
+        {/* Deliberately quiet — a tertiary tweak, styled like the language selector. */}
+        <label className="flex items-center gap-2 text-xs text-ink-muted">
+          {t('variety')}
+          <select
+            aria-label={t('variety')}
+            value={closestVariety(settings.variety)}
+            onChange={(e) => void updateSettings({ variety: Number(e.target.value) })}
+            className="rounded-lg border border-line bg-surface-raised px-2 py-1 text-sm text-ink focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            {VARIETY_PRESETS.map(({ key, value }) => (
+              <option key={key} value={value}>
+                {t(key)}
+              </option>
+            ))}
+          </select>
+        </label>
         <Button variant="solid" onClick={() => void generate()} disabled={items.length === 0}>
           {t('generateWeek')}
         </Button>

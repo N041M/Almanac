@@ -24,6 +24,8 @@ export interface OpenFoodFactsOptions {
 }
 
 export const OFF_BASE_URL = 'https://world.openfoodfacts.org';
+/** The newer Search-a-licious service — the fallback when cgi search is throttled. */
+export const OFF_SEARCH_FALLBACK_URL = 'https://search.openfoodfacts.org';
 export const OFF_SEARCH_PAGE_SIZE = 10;
 const PRODUCT_FIELDS = 'code,product_name,nutriments';
 const CACHE_PREFIX = 'food:off:';
@@ -138,22 +140,33 @@ export function createOpenFoodFactsPort(options: OpenFoodFactsOptions): Nutritio
       // manual "guess again" retry must be able to actually re-query.
       if (Array.isArray(cached) && cached.length > 0 && cached.every(isResult)) return cached;
 
-      try {
-        const url =
-          `${base}/cgi/search.pl?search_terms=${encodeURIComponent(trimmed)}` +
+      // The classic endpoint first (CORS-friendly but often throttled), then
+      // the newer search service — one flaky upstream must not read as "the
+      // feature doesn't work" (L5: degrade late, not early).
+      const urls = [
+        `${base}/cgi/search.pl?search_terms=${encodeURIComponent(trimmed)}` +
           `&search_simple=1&action=process&json=1&page_size=${OFF_SEARCH_PAGE_SIZE}` +
-          `&fields=${PRODUCT_FIELDS}`;
-        const payload = await fetchJson(url, headers);
-        if (!isRecord(payload) || !Array.isArray(payload['products'])) return [];
-        // Nameless search hits are useless — skipped, the rest stand (L5).
-        const results = payload['products']
-          .map((product) => toResult(product))
-          .filter((result): result is NutritionResult => result !== null);
-        if (results.length > 0) await writeCache(cacheKey, results);
-        return results;
-      } catch {
-        return [];
+          `&fields=${PRODUCT_FIELDS}`,
+        `${OFF_SEARCH_FALLBACK_URL}/search?q=${encodeURIComponent(trimmed)}` +
+          `&page_size=${OFF_SEARCH_PAGE_SIZE}&fields=${PRODUCT_FIELDS}`,
+      ];
+      for (const url of urls) {
+        try {
+          const payload = await fetchJson(url, headers);
+          if (!isRecord(payload)) continue;
+          const list = payload['products'] ?? payload['hits'];
+          if (!Array.isArray(list)) continue;
+          // Nameless search hits are useless — skipped, the rest stand (L5).
+          const results = list
+            .map((product) => toResult(product))
+            .filter((result): result is NutritionResult => result !== null);
+          if (results.length > 0) await writeCache(cacheKey, results);
+          return results;
+        } catch {
+          // try the next endpoint
+        }
       }
+      return [];
     },
   };
 }
