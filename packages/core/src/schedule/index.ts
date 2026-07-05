@@ -1,2 +1,4 @@
-export type { Frequency, Recurrence } from './recurrence.js';
+export type { Frequency, Recurrence, WeekdayPos } from './recurrence.js';
 export { occurrencesInRange } from './recurrence.js';
+export type { InstanceOverride, Occurrence } from './overrides.js';
+export { applyOverrides } from './overrides.js';

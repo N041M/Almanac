@@ -20,3 +20,10 @@ export {
   endOfMonth,
 } from './date-math.js';
 export { createFixedClock } from './fixed-clock.js';
+export type { TimedSpan } from './timed-span.js';
+export {
+  isValidTimeZone,
+  resolveDisplayZone,
+  dateInZone,
+  daysCovered,
+} from './timed-span.js';
