@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { allUnits } from '@almanac/core';
+import { deriveRecipeNutrition } from '@almanac/food';
 import { useMeals } from '../state/meals';
 import { Button } from '../ui/Button';
 
@@ -45,6 +46,7 @@ export function MealIngredientsEditor({ recipeId }: { recipeId: string }) {
             return (
               <li key={`${line.ingredientId}-${i}`} className="flex items-center gap-2 text-sm">
                 <span className="flex-1">{lineName}</span>
+                <NutritionMatch ingredientId={line.ingredientId} name={lineName} />
                 <span className="text-ink-muted">
                   {line.quantity.value} {line.quantity.unit}
                 </span>
@@ -73,8 +75,19 @@ export function MealIngredientsEditor({ recipeId }: { recipeId: string }) {
           placeholder={t('ingredientName')}
           value={name}
           onChange={(e) => setName(e.target.value)}
+          list={`ingredient-catalog-${recipeId}`}
           className={`min-w-32 flex-1 ${inputClass}`}
         />
+        {/* Autocomplete from the shared catalog — picking a suggestion is how
+            near-duplicates get avoided (confirm, don't fuzzy-merge). */}
+        <datalist id={`ingredient-catalog-${recipeId}`}>
+          {Object.values(ingredients)
+            .map((entry) => entry.name)
+            .sort((a, b) => a.localeCompare(b))
+            .map((entry) => (
+              <option key={entry} value={entry} />
+            ))}
+        </datalist>
         <input
           aria-label={t('amount')}
           placeholder={t('amount')}
@@ -109,6 +122,90 @@ export function MealIngredientsEditor({ recipeId }: { recipeId: string }) {
           className={`w-16 ${inputClass}`}
         />
       </label>
+
+      <DerivedNutrition recipeId={recipeId} />
     </div>
+  );
+}
+
+/**
+ * Which OFF product an ingredient's guessed facts come from — visible and
+ * changeable, per the confirm-the-match practice. Three quiet states (L5):
+ * choices in session → a select (top matches + "no match"); factless with no
+ * choices → a "guess" button (also the retry after offline); facts from a
+ * previous session → nothing extra.
+ */
+function NutritionMatch({ ingredientId, name }: { ingredientId: string; name: string }) {
+  const { t } = useTranslation('meals');
+  const ingredient = useMeals((s) => s.ingredients[ingredientId]);
+  const choices = useMeals((s) => s.nutritionChoices[ingredientId]);
+  const pick = useMeals((s) => s.nutritionPick[ingredientId]);
+  const guessNutrition = useMeals((s) => s.guessNutrition);
+  const applyNutrition = useMeals((s) => s.applyNutrition);
+
+  if (choices !== undefined && choices.length > 0) {
+    return (
+      <select
+        aria-label={t('nutritionMatch', { name })}
+        value={pick ?? 'none'}
+        onChange={(e) =>
+          void applyNutrition(ingredientId, e.target.value === 'none' ? null : Number(e.target.value))
+        }
+        className="max-w-40 truncate rounded-lg border border-line bg-surface-raised px-2 py-1 text-xs text-ink-muted focus-visible:outline-2 focus-visible:outline-accent"
+      >
+        {choices.map((choice, i) => (
+          <option key={`${choice.barcode ?? choice.name}-${i}`} value={i}>
+            {choice.name}
+          </option>
+        ))}
+        <option value="none">{t('noMatch')}</option>
+      </select>
+    );
+  }
+  if (ingredient !== undefined && ingredient.nutrition === undefined) {
+    return (
+      <Button
+        variant="ghost"
+        className="text-xs"
+        aria-label={t('guessFor', { name })}
+        onClick={() => void guessNutrition(ingredientId)}
+      >
+        {t('guessNutrition')}
+      </Button>
+    );
+  }
+  return null;
+}
+
+/**
+ * The guessed per-serving macros, derived from ingredient facts (§7). Purely
+ * additive: nothing derivable → nothing shown; partially derivable → shown
+ * with a quiet "n not counted" hint, never a warning dialog (L5).
+ */
+function DerivedNutrition({ recipeId }: { recipeId: string }) {
+  const { t } = useTranslation('meals');
+  const recipe = useMeals((s) => s.recipes[recipeId]);
+  const ingredients = useMeals((s) => s.ingredients);
+  if (recipe === undefined || recipe.ingredients.length === 0) return null;
+
+  const derived = deriveRecipeNutrition(recipe, new Map(Object.entries(ingredients)));
+  const { perServing, unaccounted } = derived;
+  const parts = [
+    perServing.kcal !== undefined && t('nutrKcal', { value: Math.round(perServing.kcal) }),
+    perServing.proteinG !== undefined &&
+      t('nutrProtein', { value: Math.round(perServing.proteinG) }),
+    perServing.carbsG !== undefined && t('nutrCarbs', { value: Math.round(perServing.carbsG) }),
+    perServing.fatG !== undefined && t('nutrFat', { value: Math.round(perServing.fatG) }),
+  ].filter((part): part is string => typeof part === 'string');
+  if (parts.length === 0) return null;
+
+  return (
+    <p className="text-sm text-ink-muted">
+      <span className="font-medium text-ink">{t('estimatedNutrition')}: </span>
+      ≈ {parts.join(' · ')}
+      {unaccounted.length > 0 && (
+        <span className="ml-1">({t('nutritionPartial', { count: unaccounted.length })})</span>
+      )}
+    </p>
   );
 }

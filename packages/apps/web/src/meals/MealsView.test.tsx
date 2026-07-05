@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { EN_US } from '@almanac/core';
@@ -10,6 +10,9 @@ import i18n from '../i18n/config';
 
 beforeEach(async () => {
   globalThis.localStorage.clear();
+  // No test ever reaches the real network; "offline" is also the degradation
+  // the nutrition guess must survive quietly (L5).
+  vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))));
   await i18n.changeLanguage('en');
   useCalendar.setState({
     locale: EN_US,
@@ -26,6 +29,8 @@ beforeEach(async () => {
     settings: null,
     plan: [],
     breakdownIndex: null,
+    nutritionChoices: {},
+    nutritionPick: {},
   });
 });
 
@@ -159,6 +164,147 @@ describe('meals UI', () => {
     expect(within(goulashRow).getByRole('button', { name: 'Ingredients (0)' })).toBeInTheDocument();
     // Both meals still exist; only the line went away.
     expect(useMeals.getState().items).toHaveLength(2);
+  });
+
+  it('guesses nutrition from ingredients via the OFF lookup and shows the per-serving estimate', async () => {
+    // OFF answers the "Beef" search; per-100g facts ride in.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              products: [
+                {
+                  product_name: 'Beef',
+                  code: '111',
+                  nutriments: { 'energy-kcal_100g': 250, proteins_100g: 26, fat_100g: 15 },
+                },
+              ],
+            }),
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    await openMeals(user);
+    await addMeal(user, 'Goulash');
+    await user.click(screen.getByRole('button', { name: 'Ingredients (0)' }));
+    await user.type(screen.getByLabelText('Ingredient'), 'Beef');
+    await user.type(screen.getByLabelText('Amount'), '400');
+    await user.click(screen.getByRole('button', { name: 'Add ingredient' }));
+
+    // 400 g × 250 kcal/100g = 1000 kcal ÷ 2 servings = 500 per serving.
+    expect(await screen.findByText(/500 kcal/)).toBeInTheDocument();
+    expect(screen.getByText(/52 g protein/)).toBeInTheDocument();
+    expect(screen.queryByText(/not counted/)).not.toBeInTheDocument();
+  });
+
+  it('offline: the ingredient still lands, uncounted — the guess is enrichment, not a gate (L5)', async () => {
+    const user = userEvent.setup();
+    await openMeals(user);
+    await addMeal(user, 'Goulash');
+    const toggle = screen.getByRole('button', { name: 'Ingredients (0)' });
+    const row = toggle.closest('li') as HTMLElement;
+    await user.click(toggle);
+    await user.type(screen.getByLabelText('Ingredient'), 'Beef');
+    await user.type(screen.getByLabelText('Amount'), '400');
+    await user.click(screen.getByRole('button', { name: 'Add ingredient' }));
+
+    expect(await within(row).findByText('Beef')).toBeInTheDocument();
+    // No facts, no estimate, no error — quiet absence.
+    expect(screen.queryByText(/Estimated/)).not.toBeInTheDocument();
+  });
+
+  it('catalog reuse is plural-aware: "Onions" resolves to the existing "Onion"', async () => {
+    const user = userEvent.setup();
+    await openMeals(user);
+    await addMeal(user, 'Goulash');
+    const toggle = screen.getByRole('button', { name: 'Ingredients (0)' });
+    await user.click(toggle);
+    await user.type(screen.getByLabelText('Ingredient'), 'Onion');
+    await user.type(screen.getByLabelText('Amount'), '100');
+    await user.click(screen.getByRole('button', { name: 'Add ingredient' }));
+    await user.type(screen.getByLabelText('Ingredient'), 'onions');
+    await user.type(screen.getByLabelText('Amount'), '50');
+    await user.click(screen.getByRole('button', { name: 'Add ingredient' }));
+
+    expect(Object.keys(useMeals.getState().ingredients)).toHaveLength(1);
+    // ...but a one-letter difference is a different ingredient, not a merge.
+    await user.type(screen.getByLabelText('Ingredient'), 'Onios');
+    await user.type(screen.getByLabelText('Amount'), '50');
+    await user.click(screen.getByRole('button', { name: 'Add ingredient' }));
+    expect(Object.keys(useMeals.getState().ingredients)).toHaveLength(2);
+  });
+
+  it('the nutrition match is visible and changeable; switching updates the estimate', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              products: [
+                { product_name: 'Beef', code: '1', nutriments: { 'energy-kcal_100g': 250 } },
+                { product_name: 'Beef jerky', code: '2', nutriments: { 'energy-kcal_100g': 400 } },
+              ],
+            }),
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    await openMeals(user);
+    await addMeal(user, 'Goulash');
+    await user.click(screen.getByRole('button', { name: 'Ingredients (0)' }));
+    await user.type(screen.getByLabelText('Ingredient'), 'Beef');
+    await user.type(screen.getByLabelText('Amount'), '400');
+    await user.click(screen.getByRole('button', { name: 'Add ingredient' }));
+
+    // Top match auto-applied: 400 g × 250 / 100 ÷ 2 servings = 500.
+    expect(await screen.findByText(/500 kcal/)).toBeInTheDocument();
+
+    // The match is visible and switchable: jerky → 800 kcal per serving.
+    const match = screen.getByLabelText('Nutrition match for Beef');
+    expect(within(match).getByRole('option', { selected: true })).toHaveTextContent('Beef');
+    await user.selectOptions(match, '1');
+    expect(await screen.findByText(/800 kcal/)).toBeInTheDocument();
+
+    // "No match" clears the guess — and a user pick is never re-overwritten.
+    await user.selectOptions(match, 'none');
+    expect(screen.queryByText(/Estimated/)).not.toBeInTheDocument();
+  });
+
+  it('offline guess leaves a retry: the per-line "Guess nutrition" button', async () => {
+    const user = userEvent.setup();
+    await openMeals(user);
+    await addMeal(user, 'Goulash');
+    await user.click(screen.getByRole('button', { name: 'Ingredients (0)' }));
+    await user.type(screen.getByLabelText('Ingredient'), 'Beef');
+    await user.type(screen.getByLabelText('Amount'), '400');
+    await user.click(screen.getByRole('button', { name: 'Add ingredient' }));
+
+    // Offline (default stub): no choices, so the factless line offers a retry.
+    const retry = await screen.findByRole('button', { name: 'Guess nutrition for Beef' });
+
+    // Back online: the retry populates choices and applies the top match.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              products: [
+                { product_name: 'Beef', code: '1', nutriments: { 'energy-kcal_100g': 250 } },
+              ],
+            }),
+        }),
+      ),
+    );
+    await user.click(retry);
+    expect(await screen.findByText(/500 kcal/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Nutrition match for Beef')).toBeInTheDocument();
   });
 
   it('meals switch language with the app (module namespace rides the manifest, L7)', async () => {

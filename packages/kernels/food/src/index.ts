@@ -13,6 +13,7 @@ export {
   decodeIngredient,
   decodeRecipe,
 } from './codecs.js';
+export { normalizeFoodName, sameFoodName } from './food-name.js';
 export type { FoodCatalog } from './catalog.js';
 export { createFoodCatalog } from './catalog.js';
 export type { FetchJson, OpenFoodFactsOptions } from './open-food-facts.js';

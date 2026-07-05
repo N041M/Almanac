@@ -1,6 +1,17 @@
 import { create } from 'zustand';
-import { createSeededRng, startOfWeek, type ISODate } from '@almanac/core';
-import { createFoodCatalog, type Ingredient, type Recipe } from '@almanac/food';
+import {
+  createSeededRng,
+  startOfWeek,
+  type ISODate,
+  type NutritionResult,
+} from '@almanac/core';
+import {
+  createFoodCatalog,
+  createOpenFoodFactsPort,
+  sameFoodName,
+  type Ingredient,
+  type Recipe,
+} from '@almanac/food';
 import {
   WEIGHT_PRESETS,
   commitWeek,
@@ -19,6 +30,19 @@ import { systemClock, today } from '../clock';
 const catalog = createFoodCatalog(storagePort, systemClock);
 const mealsStore = createMealsStore(storagePort, dayStore, systemClock);
 const rng = createSeededRng(systemClock.now() >>> 0);
+
+// Nutrition lookup (§7) — enrichment, never a gate: every failure path in the
+// adapter resolves to "no data" and the ingredient simply stays fact-less.
+// (Browsers drop the User-Agent header; it applies in the Tauri shell.)
+const nutrition = createOpenFoodFactsPort({
+  fetchJson: async (url, headers) => {
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return (await response.json()) as unknown;
+  },
+  userAgent: 'Almanac/0.0 (personal calendar; desktop app)',
+  cache: storagePort,
+});
 
 export type WeightPreset = keyof typeof WEIGHT_PRESETS;
 
@@ -39,6 +63,10 @@ interface MealsState {
   plan: WeekPlan;
   /** Index of the plan entry whose breakdown panel is open. */
   breakdownIndex: number | null;
+  /** Per ingredient: the OFF products its nutrition guess can come from (session-only). */
+  nutritionChoices: Readonly<Record<string, NutritionResult[]>>;
+  /** Per ingredient: which choice is applied (null = "no match" chosen). */
+  nutritionPick: Readonly<Record<string, number | null>>;
 
   load: () => Promise<void>;
   addMeal: (name: string, tags: string, preset: WeightPreset) => Promise<void>;
@@ -49,6 +77,10 @@ interface MealsState {
   addIngredient: (recipeId: string, name: string, amount: number, unit: string) => Promise<void>;
   removeIngredient: (recipeId: string, line: number) => Promise<void>;
   setServings: (recipeId: string, servings: number) => Promise<void>;
+  /** Look up OFF matches for an ingredient; auto-applies the first when factless. */
+  guessNutrition: (ingredientId: string) => Promise<void>;
+  /** Apply one of the looked-up matches (or none) as the ingredient's facts. */
+  applyNutrition: (ingredientId: string, choice: number | null) => Promise<void>;
   generate: () => Promise<void>;
   reroll: (index: number) => Promise<void>;
   toggleLock: (index: number) => Promise<void>;
@@ -78,6 +110,8 @@ export const useMeals = create<MealsState>((set, get) => ({
   settings: null,
   plan: [],
   breakdownIndex: null,
+  nutritionChoices: {},
+  nutritionPick: {},
 
   load: async () => {
     if (get().loaded) return;
@@ -145,10 +179,12 @@ export const useMeals = create<MealsState>((set, get) => ({
     const trimmed = name.trim();
     if (recipe === undefined || trimmed === '' || !Number.isFinite(amount) || amount <= 0) return;
 
-    // Reuse the catalog entry with this name (one "Onion" app-wide — shopping
-    // aggregates by ingredient id, §8.1); create it only when new.
-    const existing = Object.values(get().ingredients).find(
-      (candidate) => candidate.name.toLowerCase() === trimmed.toLowerCase(),
+    // Reuse the catalog entry this name identifies (one "Onion" app-wide —
+    // shopping aggregates by ingredient id, §8.1). Identity = normalized
+    // match ("Onions" ≡ "onion"), never fuzzy: typos surface as autocomplete
+    // suggestions the user confirms, not silent merges.
+    const existing = Object.values(get().ingredients).find((candidate) =>
+      sameFoodName(candidate.name, trimmed),
     );
     const ingredient: Ingredient =
       existing ?? { id: crypto.randomUUID(), name: trimmed, tags: [], defaultUnit: unit };
@@ -164,8 +200,52 @@ export const useMeals = create<MealsState>((set, get) => ({
       recipes: { ...s.recipes, [recipeId]: nextRecipe },
       ingredients: existing !== undefined ? s.ingredients : { ...s.ingredients, [ingredient.id]: ingredient },
     }));
-    if (existing === undefined) await quietly(() => catalog.saveIngredient(ingredient));
+    if (existing === undefined) {
+      await quietly(() => catalog.saveIngredient(ingredient));
+      // Fire-and-forget: the guess never delays adding, and never gates (§7).
+      void get().guessNutrition(ingredient.id);
+    }
     await quietly(() => catalog.saveRecipe(nextRecipe));
+  },
+
+  guessNutrition: async (ingredientId) => {
+    const ingredient = get().ingredients[ingredientId];
+    if (ingredient === undefined) return;
+    let matches: NutritionResult[];
+    try {
+      // English-only for now; other locales will translate the name to
+      // English here before searching (see food-name.ts).
+      matches = (await nutrition.search(ingredient.name)).filter(
+        (result) => result.per100g !== undefined,
+      );
+    } catch {
+      return; // offline/error: quietly no choices, ingredient stays factless (L5)
+    }
+    if (get().ingredients[ingredientId] === undefined) return; // removed meanwhile
+    set((s) => ({ nutritionChoices: { ...s.nutritionChoices, [ingredientId]: matches } }));
+    // Auto-apply the top match only when the ingredient has no facts yet —
+    // a user-confirmed pick is never overwritten by a background guess.
+    if (matches.length > 0 && get().ingredients[ingredientId]?.nutrition === undefined) {
+      await get().applyNutrition(ingredientId, 0);
+    }
+  },
+
+  applyNutrition: async (ingredientId, choice) => {
+    const { ingredients, nutritionChoices } = get();
+    const ingredient = ingredients[ingredientId];
+    if (ingredient === undefined) return;
+    const picked = choice === null ? undefined : nutritionChoices[ingredientId]?.[choice];
+    if (choice !== null && picked?.per100g === undefined) return;
+
+    const bare: Ingredient = { ...ingredient };
+    delete bare.nutrition;
+    const next: Ingredient =
+      picked?.per100g === undefined ? bare : { ...bare, nutrition: { per100g: picked.per100g } };
+    set((s) => ({
+      ingredients: { ...s.ingredients, [ingredientId]: next },
+      nutritionPick: { ...s.nutritionPick, [ingredientId]: choice },
+    }));
+    await quietly(() => catalog.saveIngredient(next));
   },
 
   removeIngredient: async (recipeId, line) => {
