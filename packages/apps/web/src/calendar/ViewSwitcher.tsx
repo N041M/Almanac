@@ -5,10 +5,12 @@ import { useCalendar } from '../state/store';
 const VIEWS: { view: CalendarView; labelKey: string }[] = [
   { view: 'month', labelKey: 'viewMonth' },
   { view: 'week', labelKey: 'viewWeek' },
+  { view: 'timeline', labelKey: 'viewTimeline' },
   { view: 'day', labelKey: 'viewDay' },
+  { view: 'agenda', labelKey: 'viewAgenda' },
 ];
 
-/** Segmented month/week/day control. */
+/** Segmented view control (5.4: Month · Week · Timeline · Day · Agenda). */
 export function ViewSwitcher() {
   const { t } = useTranslation();
   const active = useCalendar((s) => s.view);

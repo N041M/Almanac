@@ -24,6 +24,9 @@ import {
   type WeekPlan,
 } from '@almanac/meals';
 import { dayStore, storagePort } from './persistence';
+import { seedStarterMeals } from './seed-meals';
+import { useCalendar } from './store';
+import { useUndo } from './undo';
 import { systemClock, today } from '../clock';
 
 // Composition root for the meals module (L4 edges live here): the real clock
@@ -97,6 +100,10 @@ interface MealsState {
   copyMeal: (date: ISODate) => void;
   /** Paste the copied meal onto `date` — any day, any week. */
   pasteMeal: (date: ISODate) => Promise<void>;
+  /** Copy + clear: the keyboard cut (⌘X) and half of drag & drop. */
+  cutMeal: (date: ISODate) => Promise<void>;
+  /** Drag & drop: move the meal from one day to another (locked target wins). */
+  moveMeal: (from: ISODate, to: ISODate) => Promise<void>;
 }
 
 /** This Monday (weekStart is locale-driven later; the engine only needs a date). */
@@ -113,7 +120,39 @@ async function quietly(write: () => Promise<void>): Promise<void> {
   }
 }
 
-export const useMeals = create<MealsState>((set, get) => ({
+const EMPTY_SLICE: MealsDaySlice = { recipeId: null, locked: false, breakdown: null };
+
+export const useMeals = create<MealsState>((set, get) => {
+  /** The slice currently on `date` (plan-first; cache for out-of-week days). */
+  function currentSlice(date: ISODate): MealsDaySlice {
+    const s = get();
+    const entry = s.plan.find((e) => e.date === date);
+    if (entry !== undefined) {
+      return { recipeId: entry.recipeId, locked: entry.locked, breakdown: entry.breakdown };
+    }
+    return { ...EMPTY_SLICE, recipeId: s.dayMeals[date] ?? null };
+  }
+
+  /**
+   * Write one day's slice everywhere it lives: plan entry or day cache,
+   * storage (quietly, L5), and the calendar's day records. The undo entries
+   * are closures over this, so an inverse repairs all three the same way.
+   */
+  async function applyDay(date: ISODate, slice: MealsDaySlice): Promise<void> {
+    set((s) => {
+      const inPlan = s.plan.some((e) => e.date === date);
+      return {
+        plan: inPlan
+          ? s.plan.map((e) => (e.date === date ? { ...e, ...slice } : e))
+          : s.plan,
+        dayMeals: inPlan ? s.dayMeals : { ...s.dayMeals, [date]: slice.recipeId },
+      };
+    });
+    await quietly(() => mealsStore.writeDay(date, slice));
+    void useCalendar.getState().invalidateDays();
+  }
+
+  return {
   loaded: false,
   recipes: {},
   ingredients: {},
@@ -128,6 +167,11 @@ export const useMeals = create<MealsState>((set, get) => ({
 
   load: async () => {
     if (get().loaded) return;
+    // First run: starter meals so every feature is exercisable immediately.
+    // Tests seed explicitly; the flag keeps real deletions deleted.
+    if (import.meta.env.MODE !== 'test') {
+      await seedStarterMeals(storagePort, catalog, mealsStore);
+    }
     const settings = await mealsStore.getSettings(currentWeekStart());
     const [recipeList, ingredientList, items, plan] = await Promise.all([
       catalog.listRecipes(),
@@ -303,15 +347,28 @@ export const useMeals = create<MealsState>((set, get) => ({
   generate: async () => {
     const { items, settings, plan, recipes } = get();
     if (settings === null) return;
+    const before = plan;
     const next = generateWeek(items, new Map(Object.entries(recipes)), settings, plan, rng);
     // The plan is the truth for its dates now; drop any stale day cache.
     set({ plan: next, breakdownIndex: null, dayMeals: {} });
     await quietly(() => mealsStore.writeWeek(next));
+    void useCalendar.getState().invalidateDays();
+    if (before.length > 0) {
+      useUndo.getState().push({
+        labelKey: 'meals:generateWeek',
+        apply: async () => {
+          set({ plan: before, breakdownIndex: null });
+          await quietly(() => mealsStore.writeWeek(before));
+          void useCalendar.getState().invalidateDays();
+        },
+      });
+    }
   },
 
   reroll: async (index) => {
     const { items, settings, plan, recipes } = get();
     if (settings === null) return;
+    const before = plan[index];
     const next = rerollDay(items, new Map(Object.entries(recipes)), settings, plan, index, rng);
     if (next === plan) return;
     set({ plan: next });
@@ -324,24 +381,38 @@ export const useMeals = create<MealsState>((set, get) => ({
           breakdown: entry.breakdown,
         }),
       );
+      void useCalendar.getState().invalidateDays();
+    }
+    if (before !== undefined) {
+      useUndo.getState().push({
+        labelKey: 'meals:rerollDay',
+        apply: () =>
+          applyDay(before.date, {
+            recipeId: before.recipeId,
+            locked: before.locked,
+            breakdown: before.breakdown,
+          }),
+      });
     }
   },
 
   toggleLock: async (index) => {
-    const plan = get().plan.map((entry, i) =>
-      i === index ? { ...entry, locked: !entry.locked } : entry,
-    );
-    set({ plan });
-    const entry = plan[index];
-    if (entry !== undefined) {
-      await quietly(() =>
-        mealsStore.writeDay(entry.date, {
-          recipeId: entry.recipeId,
-          locked: entry.locked,
-          breakdown: entry.breakdown,
+    const before = get().plan[index];
+    if (before === undefined || before.recipeId === null) return;
+    await applyDay(before.date, {
+      recipeId: before.recipeId,
+      locked: !before.locked,
+      breakdown: before.breakdown,
+    });
+    useUndo.getState().push({
+      labelKey: before.locked ? 'meals:unlockDay' : 'meals:lockDay',
+      apply: () =>
+        applyDay(before.date, {
+          recipeId: before.recipeId,
+          locked: before.locked,
+          breakdown: before.breakdown,
         }),
-      );
-    }
+    });
   },
 
   commit: async () => {
@@ -355,6 +426,8 @@ export const useMeals = create<MealsState>((set, get) => ({
     await quietly(() => mealsStore.saveItems(committed.items));
     await quietly(() => mealsStore.saveSettings(nextSettings));
     set({ plan: await mealsStore.readWeek(weekStart) });
+    // Deliberately not undoable: committing writes served-history (the only
+    // writer, §6.5) — rewinding history silently would lie to the engine.
   },
 
   showBreakdown: (index) => set({ breakdownIndex: index }),
@@ -382,15 +455,46 @@ export const useMeals = create<MealsState>((set, get) => ({
   pasteMeal: async (date) => {
     const { mealClipboard: slice, plan } = get();
     if (slice === null) return; // empty clipboard: a quiet no-op (L5)
-    const target = plan.find((entry) => entry.date === date);
-    if (target?.locked === true) return; // a lock protects its day from paste too
-    set((s) => ({
-      plan:
-        target !== undefined
-          ? s.plan.map((entry) => (entry.date === date ? { ...entry, ...slice } : entry))
-          : s.plan,
-      dayMeals: target !== undefined ? s.dayMeals : { ...s.dayMeals, [date]: slice.recipeId },
-    }));
-    await quietly(() => mealsStore.writeDay(date, slice));
+    if (plan.find((entry) => entry.date === date)?.locked === true) return; // lock wins
+    const before = currentSlice(date);
+    await applyDay(date, slice);
+    useUndo.getState().push({
+      labelKey: 'meals:pasteMeal',
+      apply: () => applyDay(date, before),
+    });
   },
-}));
+
+  cutMeal: async (date) => {
+    if (get().plan.find((entry) => entry.date === date)?.locked === true) return; // lock wins
+    const before = currentSlice(date);
+    if (before.recipeId === null) return; // nothing to cut: quiet no-op (L5)
+    set({ mealClipboard: { recipeId: before.recipeId, locked: false, breakdown: null } });
+    await applyDay(date, EMPTY_SLICE);
+    useUndo.getState().push({
+      labelKey: 'meals:cutMeal',
+      apply: () => applyDay(date, before),
+    });
+  },
+
+  moveMeal: async (from, to) => {
+    if (from === to) return;
+    const { plan } = get();
+    // A lock protects its day on both ends: as a source and as a target.
+    if (plan.find((e) => e.date === from)?.locked === true) return;
+    if (plan.find((e) => e.date === to)?.locked === true) return;
+    const beforeFrom = currentSlice(from);
+    if (beforeFrom.recipeId === null) return; // nothing to move
+    const beforeTo = currentSlice(to);
+    // A moved meal is a fresh placement on the target (no lock, no breakdown).
+    await applyDay(to, { recipeId: beforeFrom.recipeId, locked: false, breakdown: null });
+    await applyDay(from, EMPTY_SLICE);
+    useUndo.getState().push({
+      labelKey: 'meals:moveMeal',
+      apply: async () => {
+        await applyDay(from, beforeFrom);
+        await applyDay(to, beforeTo);
+      },
+    });
+  },
+  };
+});

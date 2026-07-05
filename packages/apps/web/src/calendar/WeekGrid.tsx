@@ -2,6 +2,7 @@ import type { KeyboardEventHandler } from 'react';
 import type { ISODate } from '@almanac/core';
 import { useCalendar } from '../state/store';
 import { DayCell } from './DayCell';
+import { useDayChips } from './use-day-chips';
 
 interface WeekGridProps {
   /** The seven dates of the visible week, in display order. */
@@ -24,6 +25,7 @@ export function WeekGrid({
   const selected = useCalendar((s) => s.selected);
   const starred = useCalendar((s) => s.starred);
   const select = useCalendar((s) => s.select);
+  const { chipFor, onDropEntry } = useDayChips();
 
   return (
     <div
@@ -56,7 +58,9 @@ export function WeekGrid({
             isToday={date === todayDate}
             isSelected={date === selected}
             isStarred={starred[date] ?? false}
+            chip={chipFor(date)}
             onSelect={select}
+            onDropEntry={onDropEntry}
             shapeClass="min-h-48"
           />
         ))}

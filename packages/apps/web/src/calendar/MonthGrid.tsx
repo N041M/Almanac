@@ -2,6 +2,7 @@ import type { KeyboardEventHandler } from 'react';
 import type { CalendarCell } from '@almanac/core';
 import { useCalendar } from '../state/store';
 import { DayCell } from './DayCell';
+import { useDayChips } from './use-day-chips';
 
 interface MonthGridProps {
   grid: CalendarCell[][];
@@ -15,6 +16,7 @@ export function MonthGrid({ grid, weekdayLabels, cellLabel, gridLabel, onKeyDown
   const selected = useCalendar((s) => s.selected);
   const starred = useCalendar((s) => s.starred);
   const select = useCalendar((s) => s.select);
+  const { chipFor, onDropEntry } = useDayChips();
 
   return (
     <div
@@ -49,7 +51,9 @@ export function MonthGrid({ grid, weekdayLabels, cellLabel, gridLabel, onKeyDown
               isToday={cell.isToday}
               isSelected={cell.date === selected}
               isStarred={starred[cell.date] ?? false}
+              chip={chipFor(cell.date)}
               onSelect={select}
+              onDropEntry={onDropEntry}
               shapeClass="aspect-square"
             />
           ))}

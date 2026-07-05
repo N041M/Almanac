@@ -12,12 +12,18 @@ import {
 } from '@almanac/core';
 import { useCalendar } from '../state/store';
 import { useMeals } from '../state/meals';
+import { useSettings } from '../state/settings';
 import { Button } from '../ui/Button';
 import { ViewSwitcher } from './ViewSwitcher';
 import { MonthGrid } from './MonthGrid';
 import { WeekGrid } from './WeekGrid';
 import { DayDetail } from './DayDetail';
+import { AgendaView } from './AgendaView';
+import { TimelineView } from '../timeline/TimelineView';
 import { today } from '../clock';
+
+/** How many days the agenda looks ahead (incl. today). */
+export const AGENDA_DAYS = 14;
 
 /** Localized short weekday labels, ordered from the locale's week-start. */
 function weekdayLabels(fmt: Intl.DateTimeFormat, weekStartsOn: Weekday): string[] {
@@ -59,6 +65,9 @@ export function CalendarView() {
   const select = useCalendar((s) => s.select);
   const loadRange = useCalendar((s) => s.loadRange);
 
+  // The settings override wins; unset follows the locale (L5: unset = today's
+  // behaviour).
+  const weekStartsOn = useSettings((s) => s.weekStartsOn) ?? locale.weekStartsOn;
   const tag = bcp47(locale);
   // Intl formatter construction is costly; rebuild only when the locale changes.
   const formatters = useMemo(
@@ -70,19 +79,19 @@ export function CalendarView() {
     }),
     [tag],
   );
-  const labels = weekdayLabels(formatters.weekday, locale.weekStartsOn);
+  const labels = weekdayLabels(formatters.weekday, weekStartsOn);
   const cellLabel = (date: string): string => formatters.full.format(dateFromISO(date));
 
   const todayDate = useToday();
   const year = Number(anchor.slice(0, 4));
   const month = Number(anchor.slice(5, 7));
   const grid = useMemo(
-    () => buildMonthGrid(year, month, locale.weekStartsOn, todayDate),
-    [year, month, locale.weekStartsOn, todayDate],
+    () => buildMonthGrid(year, month, weekStartsOn, todayDate),
+    [year, month, weekStartsOn, todayDate],
   );
   const week = useMemo(
-    () => buildWeek(anchor, locale.weekStartsOn),
-    [anchor, locale.weekStartsOn],
+    () => buildWeek(anchor, weekStartsOn),
+    [anchor, weekStartsOn],
   );
   const shownDay = selected ?? anchor;
 
@@ -91,9 +100,11 @@ export function CalendarView() {
   const [first, last]: [ISODate | undefined, ISODate | undefined] =
     view === 'month'
       ? [grid[0]?.[0]?.date, lastRow?.[lastRow.length - 1]?.date]
-      : view === 'week'
+      : view === 'week' || view === 'timeline'
         ? [week[0], week[6]]
-        : [shownDay, shownDay];
+        : view === 'agenda'
+          ? [anchor, addDays(anchor, AGENDA_DAYS - 1)]
+          : [shownDay, shownDay];
   useEffect(() => {
     if (first !== undefined && last !== undefined) void loadRange(first, last);
   }, [first, last, loadRange]);
@@ -101,21 +112,32 @@ export function CalendarView() {
   const title =
     view === 'month'
       ? formatters.month.format(dateFromISO(`${anchor.slice(0, 7)}-01`))
-      : view === 'week' && first !== undefined && last !== undefined
+      : view !== 'day' && first !== undefined && last !== undefined
         ? formatters.range.formatRange(dateFromISO(first), dateFromISO(last))
         : formatters.full.format(dateFromISO(shownDay));
 
   // Roving selection: the grid is one tab stop; arrows move the selected day
-  // (aria-activedescendant), crossing range edges as needed. ⌘C/⌘V copy and
-  // paste the selected day's entry (meals today; tasks join at Phase 6).
+  // (aria-activedescendant), crossing range edges as needed. ⌘C/⌘X/⌘V copy,
+  // cut, and paste the selected day's entry (meals today; tasks at Phase 6).
   const copyMeal = useMeals((s) => s.copyMeal);
   const pasteMeal = useMeals((s) => s.pasteMeal);
+  const cutMeal = useMeals((s) => s.cutMeal);
+  const loadMeals = useMeals((s) => s.load);
+  // Chips need recipe names; loading is idempotent and cheap when done.
+  useEffect(() => {
+    void loadMeals();
+  }, [loadMeals]);
   function onGridKeyDown(e: React.KeyboardEvent<HTMLDivElement>): void {
     if ((e.metaKey || e.ctrlKey) && selected !== null) {
       const key = e.key.toLowerCase(); // Shift/CapsLock must not break the chord
       if (key === 'c') {
         e.preventDefault();
         copyMeal(selected);
+        return;
+      }
+      if (key === 'x') {
+        e.preventDefault();
+        void cutMeal(selected);
         return;
       }
       if (key === 'v') {
@@ -165,6 +187,8 @@ export function CalendarView() {
           onKeyDown={onGridKeyDown}
         />
       )}
+      {view === 'timeline' && <TimelineView days={week} todayDate={todayDate} />}
+      {view === 'agenda' && first !== undefined && <AgendaView start={first} />}
       {view === 'day' && <DayDetail date={shownDay} heading={false} />}
     </section>
   );

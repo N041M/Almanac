@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { DragEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ISODate } from '@almanac/core';
 
@@ -10,7 +10,11 @@ interface DayCellProps {
   isToday: boolean;
   isSelected: boolean;
   isStarred: boolean;
+  /** The day's meal contribution, already resolved to a display name. */
+  chip?: string | undefined;
   onSelect: (date: ISODate) => void;
+  /** Present ⇒ cells accept drops and chips are draggable (5.4 DnD). */
+  onDropEntry?: (from: ISODate, to: ISODate) => void;
   /** Shape/size classes from the hosting grid (aspect, height, …). */
   shapeClass: string;
   /** Extra cell content above the date number (e.g. week view's weekday). */
@@ -25,11 +29,21 @@ export function DayCell({
   isToday,
   isSelected,
   isStarred,
+  chip,
   onSelect,
+  onDropEntry,
   shapeClass,
   children,
 }: DayCellProps) {
   const { t } = useTranslation();
+
+  function onDrop(e: DragEvent): void {
+    if (onDropEntry === undefined) return;
+    e.preventDefault();
+    const from = e.dataTransfer.getData('text/almanac-day');
+    if (from !== '') onDropEntry(from, date);
+  }
+
   return (
     <button
       id={`day-${date}`}
@@ -39,9 +53,11 @@ export function DayCell({
       aria-current={isToday ? 'date' : undefined}
       aria-selected={isSelected}
       onClick={() => onSelect(date)}
+      onDragOver={onDropEntry === undefined ? undefined : (e) => e.preventDefault()}
+      onDrop={onDropEntry === undefined ? undefined : onDrop}
       className={[
         // buttons center their content by default; pin it to the top-left
-        'relative flex flex-col items-start rounded-lg p-1.5 text-left transition-colors',
+        'relative flex flex-col items-start gap-0.5 rounded-lg p-1.5 text-left transition-colors',
         shapeClass,
         muted ? 'text-ink-faint' : 'text-ink',
         isToday ? 'ring-1 ring-accent' : '',
@@ -57,6 +73,15 @@ export function DayCell({
       >
         {Number(date.slice(8, 10))}
       </span>
+      {chip !== undefined && (
+        <span
+          draggable={onDropEntry !== undefined}
+          onDragStart={(e) => e.dataTransfer.setData('text/almanac-day', date)}
+          className="max-w-full cursor-grab truncate rounded bg-accent-soft px-1 py-0.5 text-[11px] leading-tight"
+        >
+          {chip}
+        </span>
+      )}
       {isStarred && (
         <span
           aria-label={t('starredLegend')}

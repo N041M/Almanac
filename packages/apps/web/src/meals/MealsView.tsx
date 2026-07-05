@@ -9,8 +9,26 @@ import { MealBreakdown } from './MealBreakdown';
 import { MealsManager } from './MealsManager';
 
 /**
+ * Variety as three honest choices instead of a 0–1 slider; the engine keeps
+ * its continuous contract (§6.4) — this is purely a UI simplification.
+ * "Balanced" is the sweet spot the design doc names.
+ */
+const VARIETY_PRESETS = [
+  { key: 'varietyPredictable', value: 0.15 },
+  { key: 'varietyBalanced', value: 0.5 },
+  { key: 'varietySurprising', value: 0.85 },
+] as const;
+
+/** Stored variety (possibly a legacy slider value) → the nearest preset. */
+function closestVariety(variety: number): number {
+  return VARIETY_PRESETS.reduce((best, preset) =>
+    Math.abs(preset.value - variety) < Math.abs(best.value - variety) ? preset : best,
+  ).value;
+}
+
+/**
  * The meals module's screen (§6 UX): the 7-day plan with lock/re-roll, the
- * variety slider, generate/commit, the "why this pick" panel, and the meal
+ * variety control, generate/commit, the "why this pick" panel, and the meal
  * manager. All engine calls flow through the meals state — the view renders.
  */
 export function MealsView() {
@@ -40,21 +58,32 @@ export function MealsView() {
     <div className="space-y-6">
       <section className="flex flex-wrap items-center gap-3">
         <h2 className="mr-auto text-base font-semibold">{t('weekOf', { date: weekLabel })}</h2>
-        <label className="flex items-center gap-2 text-sm text-ink-muted">
-          <span className="sr-only">{t('variety')}</span>
-          <span aria-hidden="true">{t('varietyPredictable')}</span>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={settings.variety}
-            aria-label={t('variety')}
-            onChange={(e) => void updateSettings({ variety: Number(e.target.value) })}
-            className="accent-accent"
-          />
-          <span aria-hidden="true">{t('varietySurprising')}</span>
-        </label>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-ink-muted">{t('variety')}</span>
+          <div role="radiogroup" aria-label={t('variety')} className="flex gap-1.5">
+            {VARIETY_PRESETS.map(({ key, value }) => {
+              const active = closestVariety(settings.variety) === value;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => void updateSettings({ variety: value })}
+                  className={[
+                    'rounded-full border px-3 py-1 transition-colors',
+                    'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+                    active
+                      ? 'border-accent bg-accent font-medium text-accent-ink'
+                      : 'border-line text-ink-muted hover:bg-accent-soft/60',
+                  ].join(' ')}
+                >
+                  {t(key)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <Button variant="solid" onClick={() => void generate()} disabled={items.length === 0}>
           {t('generateWeek')}
         </Button>

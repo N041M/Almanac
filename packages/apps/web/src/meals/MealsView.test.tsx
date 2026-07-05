@@ -129,8 +129,9 @@ describe('meals UI', () => {
     // Today is inside the planned week, so its detail shows the meal.
     await user.click(screen.getByRole('button', { name: 'Calendar' }));
     await user.click(screen.getByRole('gridcell', { current: 'date' }));
-    expect(await screen.findByText('Goulash')).toBeInTheDocument();
-    expect(screen.getByText(/Meal:/)).toBeInTheDocument();
+    const panel = within(screen.getByRole('complementary'));
+    expect(await panel.findByText('Goulash')).toBeInTheDocument();
+    expect(panel.getByText(/Meal:/)).toBeInTheDocument();
   });
 
   it('adds and removes ingredient lines; the catalog reuses ingredients by name', async () => {
@@ -324,7 +325,10 @@ describe('meals UI', () => {
     const grid = screen.getByRole('grid');
     fireEvent.keyDown(grid, { key: 'ArrowRight' });
     await user.click(screen.getByRole('button', { name: 'Paste meal' }));
-    expect(await screen.findByText('Goulash')).toBeInTheDocument();
+    // scope to the day panel — the grid now shows meal chips too
+    expect(
+      await within(screen.getByRole('complementary')).findByText('Goulash'),
+    ).toBeInTheDocument();
 
     // The paste is persisted as that day's meals slice.
     const target = useCalendar.getState().selected ?? '';
@@ -349,7 +353,7 @@ describe('meals UI', () => {
     fireEvent.keyDown(grid, { key: 'ArrowRight' });
     fireEvent.keyDown(grid, { key: 'v', metaKey: true });
     const pasted = useCalendar.getState().selected ?? '';
-    await screen.findByText('Goulash'); // day detail shows it
+    await within(screen.getByRole('complementary')).findByText('Goulash'); // day panel shows it
     expect(useMeals.getState().plan.some((e) => e.date === pasted) || pasted !== '').toBe(true);
 
     // Copying an empty day empties the clipboard — paste becomes a no-op (L5).
@@ -375,6 +379,16 @@ describe('meals UI', () => {
     const after = useMeals.getState().plan[2];
     expect(after?.recipeId).toBe(before?.recipeId);
     expect(after?.locked).toBe(true);
+  });
+
+  it('variety is three presets; picking one persists the engine value', async () => {
+    const user = userEvent.setup();
+    await openMeals(user);
+    expect(screen.getByRole('radio', { name: 'Balanced' })).toBeChecked();
+    await user.click(screen.getByRole('radio', { name: 'Surprising' }));
+    expect(screen.getByRole('radio', { name: 'Surprising' })).toBeChecked();
+    expect(useMeals.getState().settings?.variety).toBe(0.85);
+    expect(globalThis.localStorage.getItem('meals:settings')).toContain('0.85');
   });
 
   it('meals switch language with the app (module namespace rides the manifest, L7)', async () => {
