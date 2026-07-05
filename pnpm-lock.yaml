@@ -123,6 +123,12 @@ importers:
         specifier: workspace:*
         version: link:../../kernels/food
 
+  packages/modules/tasks:
+    dependencies:
+      '@almanac/core':
+        specifier: workspace:*
+        version: link:../../core
+
 packages:
 
   '@adobe/css-tools@4.5.0':
