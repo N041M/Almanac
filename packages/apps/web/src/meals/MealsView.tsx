@@ -58,28 +58,29 @@ export function MealsView() {
     <div className="space-y-6">
       <section className="flex flex-wrap items-center gap-3">
         <h2 className="mr-auto text-base font-semibold">{t('weekOf', { date: weekLabel })}</h2>
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-ink-muted">{t('variety')}</span>
-          <div role="radiogroup" aria-label={t('variety')} className="flex gap-1.5">
-            {VARIETY_PRESETS.map(({ key, value }) => {
+        {/* Deliberately quiet — a tertiary tweak, not a headline control. */}
+        <div className="flex items-center gap-1 text-xs text-ink-muted">
+          <span className="mr-1">{t('variety')}:</span>
+          <div role="radiogroup" aria-label={t('variety')} className="flex items-center">
+            {VARIETY_PRESETS.map(({ key, value }, i) => {
               const active = closestVariety(settings.variety) === value;
               return (
-                <button
-                  key={key}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  onClick={() => void updateSettings({ variety: value })}
-                  className={[
-                    'rounded-full border px-3 py-1 transition-colors',
-                    'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
-                    active
-                      ? 'border-accent bg-accent font-medium text-accent-ink'
-                      : 'border-line text-ink-muted hover:bg-accent-soft/60',
-                  ].join(' ')}
-                >
-                  {t(key)}
-                </button>
+                <span key={key} className="flex items-center">
+                  {i > 0 && <span aria-hidden="true">·</span>}
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => void updateSettings({ variety: value })}
+                    className={[
+                      'rounded px-1 py-0.5 transition-colors',
+                      'focus-visible:outline-2 focus-visible:outline-accent',
+                      active ? 'font-medium text-accent' : 'hover:text-ink',
+                    ].join(' ')}
+                  >
+                    {t(key)}
+                  </button>
+                </span>
               );
             })}
           </div>
