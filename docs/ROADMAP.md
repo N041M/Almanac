@@ -18,7 +18,7 @@ Status: ✅ done · 🔨 in progress · — planned.
 | 2 | Calendar shell | tokens/dark UI, month/week/day views, keyboard grid, EN+CS, localStorage + SQLite `StoragePort` (Tauri) | ✅ |
 | 3 | Food kernel | Ingredient/Recipe/NutritionFacts; OFF adapter + caching + degradation | ✅ |
 | 4 | Meals module | §6 engine exactly, TDD + statistical suite; **module-manifest seam defined first**; meals UI (week grid, lock/re-roll, variety, breakdown, ingredients) | ✅ |
-| 5 | Calendar core v2 | recurrence v2 · timed/multi-day/timezone events · `NotificationPort` · hour-grid + agenda views · drag & drop · undo · copy/paste · secondary TZ/working hours · settings surface · vault export/import | 🔨 |
+| 5 | Calendar core v2 | recurrence v2 · timed/multi-day/timezone events · `NotificationPort` · hour-grid + agenda views · drag & drop · undo · copy/paste · settings surface · vault export/import · `StoragePort` contract suite (secondary TZ/working hours + notification adapters land with P6, alongside their first consumers) | ✅ |
 | 6 | Tasks module | tasks/events/habits on v2 primitives; multiple calendars (colors/visibility); NL quick entry; command palette; series split ("this and following"); notifications wired (+snooze) | — |
 | 7 | Macros + Shopping | both modules + UI; two-trigger aggregation (§8.1) | — |
 | 8 | Interop & findability | ICS import/export · calendar subscriptions · search · year view · printing | — |
