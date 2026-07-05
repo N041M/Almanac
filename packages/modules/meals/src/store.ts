@@ -1,8 +1,8 @@
-import type { Clock, DayStore, ISODate, StoragePort } from '@almanac/core';
-import { addDays } from '@almanac/core';
+import type { Clock, DayStore, ISODate, SliceCodec, StoragePort } from '@almanac/core';
+import { addDays, getSlice } from '@almanac/core';
 import type { PlanItem, Settings, WeekPlan } from './engine/types.js';
 import { dayNameOf } from './engine/generate-week.js';
-import { mealsDayCodec } from './slice.js';
+import { mealsDayCodec, MEALS_NAMESPACE, type MealsDaySlice } from './slice.js';
 
 // The module's own (non-day) state: plan items + settings, one key each,
 // versioned envelopes like every slice (§11). Reads never throw — corrupt or
@@ -82,6 +82,10 @@ export interface MealsStore {
   readWeek(weekStart: ISODate): Promise<WeekPlan>;
   /** Persist each entry to its day slice. */
   writeWeek(plan: WeekPlan): Promise<void>;
+  /** One day's slice (absent/corrupt reads as the empty slice, L5). */
+  readDay(date: ISODate): Promise<MealsDaySlice>;
+  /** Persist one day — single-day changes (lock, re-roll, paste) write once. */
+  writeDay(date: ISODate, slice: MealsDaySlice): Promise<void>;
 }
 
 export function createMealsStore(
@@ -129,13 +133,15 @@ export function createMealsStore(
     saveSettings: (settings) => writeKey(SETTINGS_KEY, MEALS_SETTINGS_VERSION, settings),
 
     readWeek: async (weekStart) => {
-      const dates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-      const plan: WeekPlan = [];
-      for (const date of dates) {
-        const slice = await dayStore.readSlice(date, mealsDayCodec);
-        plan.push({ dayName: dayNameOf(date), date, ...slice });
-      }
-      return plan;
+      // One batched range read (readMany underneath) instead of 7 round-trips.
+      const days = await dayStore.getRange(weekStart, addDays(weekStart, 6), [
+        mealsDayCodec as SliceCodec<unknown>,
+      ]);
+      return days.map((day) => ({
+        dayName: dayNameOf(day.date),
+        date: day.date,
+        ...(getSlice<MealsDaySlice>(day, MEALS_NAMESPACE) ?? mealsDayCodec.default()),
+      }));
     },
     writeWeek: async (plan) => {
       for (const entry of plan) {
@@ -146,5 +152,7 @@ export function createMealsStore(
         });
       }
     },
+    readDay: (date) => dayStore.readSlice(date, mealsDayCodec),
+    writeDay: (date, slice) => dayStore.writeSlice(date, mealsDayCodec, slice),
   };
 }

@@ -16,6 +16,12 @@ describe('normalizeFoodName', () => {
     expect(normalizeFoodName('green beans')).toBe('green bean');
   });
 
+  it('short e-stems drop only the s — the -oes rule needs a long stem', () => {
+    expect(normalizeFoodName('toes')).toBe('toe');
+    expect(normalizeFoodName('shoes')).toBe('shoe');
+    expect(normalizeFoodName('mangoes')).toBe('mango');
+  });
+
   it('leaves non-plural s-endings alone', () => {
     expect(normalizeFoodName('hummus')).toBe('hummus');
     expect(normalizeFoodName('asparagus')).toBe('asparagus');

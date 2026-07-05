@@ -134,7 +134,9 @@ export function createOpenFoodFactsPort(options: OpenFoodFactsOptions): Nutritio
       if (trimmed === '') return [];
       const cacheKey = `${CACHE_PREFIX}search:${trimmed.toLowerCase()}`;
       const cached = await readCache(cacheKey);
-      if (Array.isArray(cached) && cached.every(isResult)) return cached;
+      // An empty cached set is not an answer — data may exist by now, and the
+      // manual "guess again" retry must be able to actually re-query.
+      if (Array.isArray(cached) && cached.length > 0 && cached.every(isResult)) return cached;
 
       try {
         const url =
@@ -147,7 +149,7 @@ export function createOpenFoodFactsPort(options: OpenFoodFactsOptions): Nutritio
         const results = payload['products']
           .map((product) => toResult(product))
           .filter((result): result is NutritionResult => result !== null);
-        await writeCache(cacheKey, results);
+        if (results.length > 0) await writeCache(cacheKey, results);
         return results;
       } catch {
         return [];

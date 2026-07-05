@@ -125,6 +125,20 @@ describe('createOpenFoodFactsPort — search', () => {
     expect(noFetch).not.toHaveBeenCalled();
   });
 
+  it('never caches an empty result set — a later retry re-queries', async () => {
+    const cache = createMemoryStorage();
+    const empty = vi.fn<FetchJson>().mockResolvedValue({ products: [] });
+    const { port: off } = port(empty, cache);
+    expect(await off.search('obscure')).toEqual([]);
+    expect(await off.search('obscure')).toEqual([]);
+    expect(empty).toHaveBeenCalledTimes(2); // no empty answer was cached
+
+    // Data appeared upstream: the same query now succeeds and caches.
+    const found = vi.fn<FetchJson>().mockResolvedValue({ products: [PRODUCT_PAYLOAD.product] });
+    const { port: retry } = port(found, cache);
+    expect((await retry.search('obscure'))[0]?.name).toBe('Rye bread');
+  });
+
   it('caches search results per normalized query', async () => {
     const fetchJson = vi.fn<FetchJson>().mockResolvedValue({
       products: [PRODUCT_PAYLOAD.product],

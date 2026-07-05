@@ -16,7 +16,11 @@ const NOT_PLURAL_ENDINGS = /(ss|us|is)$/;
 function singularizeEn(word: string): string {
   if (word.length <= 3 || NOT_PLURAL_ENDINGS.test(word)) return word;
   if (word.endsWith('ies') && word.length > 4) return `${word.slice(0, -3)}y`;
-  if (/(ches|shes|ses|xes|zes|oes)$/.test(word)) return word.slice(0, -2);
+  // The o-plural (-oes) rule needs length ≥ 6: potatoes/mangoes/heroes fold,
+  // while short e-stems like "toes"/"shoes" just drop the final s.
+  if (/(ches|shes|ses|xes|zes)$/.test(word) || (word.endsWith('oes') && word.length >= 6)) {
+    return word.slice(0, -2);
+  }
   if (word.endsWith('s')) return word.slice(0, -1);
   return word;
 }
