@@ -5,7 +5,6 @@ export {
   toEpochDay,
   fromEpochDay,
   dateFromISO,
-  todayISO,
 } from './iso-date.js';
 export type { Weekday } from './date-math.js';
 export {
@@ -13,7 +12,6 @@ export {
   diffDays,
   weekdayOf,
   startOfWeek,
-  endOfWeek,
   daysInMonth,
   addMonths,
   startOfMonth,

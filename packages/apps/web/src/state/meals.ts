@@ -1,22 +1,9 @@
 import { create } from 'zustand';
-import {
-  createSeededRng,
-  diffDays,
-  startOfWeek,
-  type ISODate,
-  type NutritionResult,
-} from '@almanac/core';
-import {
-  createFoodCatalog,
-  createOpenFoodFactsPort,
-  sameFoodName,
-  type Ingredient,
-  type Recipe,
-} from '@almanac/food';
+import { diffDays, startOfWeek, type ISODate, type NutritionResult } from '@almanac/core';
+import { sameFoodName, type Ingredient, type Recipe } from '@almanac/food';
 import {
   WEIGHT_PRESETS,
   commitWeek,
-  createMealsStore,
   generateWeek,
   rerollDay,
   type MealsDaySlice,
@@ -24,42 +11,26 @@ import {
   type Settings,
   type WeekPlan,
 } from '@almanac/meals';
-import { dayStore, storagePort } from './persistence';
 import { seedStarterMeals } from './seed-meals';
+import { storagePort } from './persistence';
 import { useCalendar } from './store';
 import { useUndo } from './undo';
-import { systemClock, today } from '../clock';
+import { today } from '../clock';
+import {
+  EMPTY_SLICE,
+  catalog,
+  currentWeekStart,
+  mealsStore,
+  quietly,
+  rng,
+  type WeightPreset,
+} from './meals-services';
+import { createNutritionActions } from './meals-nutrition';
 
-// Composition root for the meals module (L4 edges live here): the real clock
-// seeds the Rng, and the engine itself stays pure and deterministic.
-const catalog = createFoodCatalog(storagePort, systemClock);
-const mealsStore = createMealsStore(storagePort, dayStore, systemClock);
-const rng = createSeededRng(systemClock.now() >>> 0);
+export type { WeightPreset } from './meals-services';
+export { presetOf } from './meals-services';
 
-// Nutrition lookup (§7) — enrichment, never a gate: every failure path in the
-// adapter resolves to "no data" and the ingredient simply stays fact-less.
-// (Browsers drop the User-Agent header; it applies in the Tauri shell.)
-const nutrition = createOpenFoodFactsPort({
-  fetchJson: async (url, headers) => {
-    const response = await fetch(url, { headers });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return (await response.json()) as unknown;
-  },
-  userAgent: 'Almanac/0.0 (personal calendar; desktop app)',
-  cache: storagePort,
-});
-
-export type WeightPreset = keyof typeof WEIGHT_PRESETS;
-
-/** The preset whose weight matches, for showing stored weights as presets. */
-export function presetOf(weight: number): WeightPreset {
-  const hit = (Object.keys(WEIGHT_PRESETS) as WeightPreset[]).find(
-    (key) => WEIGHT_PRESETS[key] === weight,
-  );
-  return hit ?? 'normal';
-}
-
-interface MealsState {
+export interface MealsState {
   loaded: boolean;
   /** True while the initial load is in flight (re-entrancy guard). */
   loading: boolean;
@@ -117,23 +88,9 @@ interface MealsState {
   moveMeal: (from: ISODate, to: ISODate) => Promise<void>;
 }
 
-/** This Monday (weekStart is locale-driven later; the engine only needs a date). */
-function currentWeekStart(): ISODate {
-  return startOfWeek(today(), 1);
-}
-
-/** Persist quietly: a failed write degrades to session-only state (L5). */
-async function quietly(write: () => Promise<void>): Promise<void> {
-  try {
-    await write();
-  } catch {
-    // In-memory state already reflects the action.
-  }
-}
-
-const EMPTY_SLICE: MealsDaySlice = { recipeId: null, locked: false, breakdown: null };
-
 export const useMeals = create<MealsState>((set, get) => {
+  const { guessNutrition, guessAllNutrition, applyNutrition } = createNutritionActions(set, get);
+
   /** The slice currently on `date` (plan-first; cache for out-of-week days). */
   function currentSlice(date: ISODate): MealsDaySlice {
     const s = get();
@@ -287,69 +244,9 @@ export const useMeals = create<MealsState>((set, get) => {
     await quietly(() => catalog.saveRecipe(nextRecipe));
   },
 
-  guessNutrition: async (ingredientId) => {
-    const ingredient = get().ingredients[ingredientId];
-    if (ingredient === undefined) return;
-    let matches: NutritionResult[];
-    try {
-      // English-only for now; other locales will translate the name to
-      // English here before searching (see food-name.ts).
-      matches = (await nutrition.search(ingredient.name)).filter(
-        (result) => result.per100g !== undefined,
-      );
-    } catch {
-      return; // offline/error: quietly no choices, ingredient stays factless (L5)
-    }
-    if (get().ingredients[ingredientId] === undefined) return; // removed meanwhile
-    // An empty result is stored too — the UI shows "no match" instead of
-    // pretending nothing happened (quiet ≠ invisible).
-    // When facts already exist (previous session), point the pick at the
-    // matching choice so the selector reflects what's actually applied.
-    const applied = get().ingredients[ingredientId]?.nutrition?.per100g;
-    const appliedIndex =
-      applied === undefined
-        ? undefined
-        : matches.findIndex((m) => JSON.stringify(m.per100g) === JSON.stringify(applied));
-    set((s) => ({
-      nutritionChoices: { ...s.nutritionChoices, [ingredientId]: matches },
-      ...(appliedIndex !== undefined && appliedIndex >= 0
-        ? { nutritionPick: { ...s.nutritionPick, [ingredientId]: appliedIndex } }
-        : {}),
-    }));
-    // Auto-apply the top match only when the ingredient has no facts yet —
-    // a user-confirmed pick is never overwritten by a background guess.
-    if (matches.length > 0 && applied === undefined) {
-      await get().applyNutrition(ingredientId, 0);
-    }
-  },
-
-  guessAllNutrition: async (recipeId) => {
-    const recipe = get().recipes[recipeId];
-    if (recipe === undefined) return;
-    const factless = [...new Set(recipe.ingredients.map((line) => line.ingredientId))].filter(
-      (id) => get().ingredients[id] !== undefined && get().ingredients[id]?.nutrition === undefined,
-    );
-    // Sequential on purpose: OFF rate-limits; a personal recipe is a handful.
-    for (const id of factless) await get().guessNutrition(id);
-  },
-
-  applyNutrition: async (ingredientId, choice) => {
-    const { ingredients, nutritionChoices } = get();
-    const ingredient = ingredients[ingredientId];
-    if (ingredient === undefined) return;
-    const picked = choice === null ? undefined : nutritionChoices[ingredientId]?.[choice];
-    if (choice !== null && picked?.per100g === undefined) return;
-
-    const bare: Ingredient = { ...ingredient };
-    delete bare.nutrition;
-    const next: Ingredient =
-      picked?.per100g === undefined ? bare : { ...bare, nutrition: { per100g: picked.per100g } };
-    set((s) => ({
-      ingredients: { ...s.ingredients, [ingredientId]: next },
-      nutritionPick: { ...s.nutritionPick, [ingredientId]: choice },
-    }));
-    await quietly(() => catalog.saveIngredient(next));
-  },
+  guessNutrition,
+  guessAllNutrition,
+  applyNutrition,
 
   removeIngredient: async (recipeId, line) => {
     const recipe = get().recipes[recipeId];

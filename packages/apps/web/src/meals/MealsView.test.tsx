@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { EN_US, startOfWeek } from '@almanac/core';
+import { EN_US, addDays, startOfWeek } from '@almanac/core';
 import { App } from '../App';
 import { useCalendar } from '../state/store';
 import { useMeals } from '../state/meals';
@@ -418,6 +418,30 @@ describe('meals UI', () => {
     const { plan, viewWeek } = useMeals.getState();
     expect(plan[0]?.date).toBe(viewWeek);
     expect(plan.every((e) => e.recipeId !== null)).toBe(true);
+  });
+
+  it('committing a past week never rewinds served-history or the week lineage', async () => {
+    const user = userEvent.setup();
+    await openMeals(user);
+    await addMeal(user, 'Goulash');
+    // Plan + commit the current week: lastServed lands in this week.
+    await user.click(screen.getByRole('button', { name: 'Generate week' }));
+    await user.click(screen.getByRole('button', { name: 'Next week' }));
+    const forwardServed = useMeals.getState().items[0]?.lastServed;
+    const forwardWeek = useMeals.getState().settings?.weekStart;
+    expect(forwardServed).not.toBeNull();
+
+    // Go back to a much earlier week, plan and commit there.
+    await user.click(screen.getByLabelText('Pick a week'));
+    // Two Mondays before the current view.
+    const past = addDays(useMeals.getState().viewWeek, -21);
+    await useMeals.getState().goToWeek(past);
+    await user.click(screen.getByRole('button', { name: 'Generate week' }));
+    await user.click(screen.getByRole('button', { name: 'Next week' }));
+
+    // History and the engine's weekStart only ever move forward (§6.5).
+    expect(useMeals.getState().items[0]?.lastServed).toBe(forwardServed);
+    expect(useMeals.getState().settings?.weekStart).toBe(forwardWeek);
   });
 
   it('estimate-all guesses every factless ingredient; a no-hit shows "No match"', async () => {

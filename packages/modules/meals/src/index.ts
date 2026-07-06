@@ -14,7 +14,5 @@ export {
   MEALS_ITEMS_VERSION,
   MEALS_SETTINGS_VERSION,
 } from './store.js';
-export { en as mealsMessagesEn } from './i18n/en.js';
-export { cs as mealsMessagesCs } from './i18n/cs.js';
 
 export const MEALS_MODULE_VERSION = '0.0.0';

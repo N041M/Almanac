@@ -1,5 +1,3 @@
-import type { Clock } from '../ports/clock.js';
-
 /** A calendar date "YYYY-MM-DD". Timezone-free by design; math is UTC-based. */
 export type ISODate = string;
 
@@ -57,12 +55,4 @@ export function dateFromISO(date: ISODate): Date {
   const ms = parseISO(date);
   if (ms === null) throw new RangeError(`Invalid ISODate: ${date}`);
   return new Date(ms);
-}
-
-/**
- * Today's date from the injected clock (L4), in UTC. A locale/timezone offset
- * can be layered on later; the core stays deterministic.
- */
-export function todayISO(clock: Clock): ISODate {
-  return fromEpochDay(Math.floor(clock.now() / MS_PER_DAY));
 }
