@@ -25,7 +25,9 @@ export function CommandPalette({
 }: {
   open: boolean;
   onClose: () => void;
-  onNavigate: (screen: 'calendar' | 'tasks' | 'meals' | 'settings') => void;
+  onNavigate: (
+    screen: 'calendar' | 'tasks' | 'meals' | 'shopping' | 'macros' | 'settings',
+  ) => void;
 }) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
@@ -80,6 +82,8 @@ export function CommandPalette({
       })),
       { id: 'tab-tasks', label: t('tasks:title'), run: () => onNavigate('tasks') },
       { id: 'tab-meals', label: t('meals:title'), run: () => onNavigate('meals') },
+      { id: 'tab-shopping', label: t('shopping:title'), run: () => onNavigate('shopping') },
+      { id: 'tab-macros', label: t('macros:title'), run: () => onNavigate('macros') },
       { id: 'tab-settings', label: t('navSettings'), run: () => onNavigate('settings') },
       ...calendars.map((calendar) => ({
         id: `cal-${calendar.id}`,

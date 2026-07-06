@@ -20,7 +20,7 @@ Status: ✅ done · 🔨 in progress · — planned.
 | 4 | Meals module | §6 engine exactly, TDD + statistical suite; **module-manifest seam defined first**; meals UI (week grid, lock/re-roll, variety, breakdown, ingredients) | ✅ |
 | 5 | Calendar core v2 | recurrence v2 · timed/multi-day/timezone events · `NotificationPort` · hour-grid + agenda views · drag & drop · undo · copy/paste · settings surface · vault export/import · `StoragePort` contract suite (secondary TZ/working hours + notification adapters land with P6, alongside their first consumers) | ✅ |
 | 6 | Tasks module | tasks/events/habits on v2 primitives; multiple calendars (colors/visibility); NL quick entry + picker composer; command palette; series split; notifications wired (snooze deferred: no platform support yet — plain notifications per the L5 row; habit-editing UI rides a later pass) | ✅ |
-| 7 | Macros + Shopping | both modules + UI; two-trigger aggregation (§8.1) | — |
+| 7 | Macros + Shopping | both modules + UI; two-trigger aggregation (§8.1) | ✅ |
 | 8 | Interop & findability | ICS import/export · calendar subscriptions · search · year view · printing | — |
 | 9 | Life modules | check-in · cycle · body · workouts · weather · insights · birthdays | — |
 | 10 | Sync | D1/D4: accounts, per-slice LWW revision sync, server-durable | — |
@@ -117,10 +117,30 @@ Degrade: permission denied/unsupported → quiet in-app badges; never nags (L5).
   filter, never deletion. (P12 sharing shares these same namespaces.)
 - **Jump-to-date** in the command palette.
 
-## Phase 7 — Macros + Shopping (design doc §8.1, unchanged in content)
+## Phase 7 — Macros + Shopping (design doc §8.1, unchanged in content) ✅
 Moved after tasks (was Phase 5) so the calendar is livable-in first; both
 modules ride the food kernel + meals plans: two-trigger shopping aggregation,
 unit-normalized lists, macro totals from planned meals + manual logging.
+
+Built as two independent modules (`@almanac/shopping`, `@almanac/macros`),
+each importing **core + food only** — neither imports meals. They read the
+planned recipe off the **shared `meals` Day field by name** (L1's shared-data
+seam), never by import; the app shell composes the cross-module read. Notes:
+- **Shopping** is one pure `aggregateWindow` engine behind both triggers
+  (`shoppingNowWindow` ad-hoc, `scheduledWindows` recurring via core's
+  recurrence). Quantities normalize to base units before folding — compatible
+  merge, incompatible stay separate. The list is derived on demand, never
+  stored; only the schedule persists. Session-only check-off + manual add
+  (persisting per-trip state is a later pass).
+- **Macros** derives intake on read: the planned meal auto-fills one serving
+  (scalable/excludable) via the food kernel's `deriveRecipeNutrition`, plus a
+  manual per-day log slice; targets are always editable. Sparse throughout —
+  a macro shows only where something contributed it (never a hard 0).
+- **§8.1 servings reconciliation:** the roadmap said "multiply ingredients by
+  servings", but this repo's kernel stores recipe ingredient quantities as
+  **whole-recipe** amounts (`deriveRecipeNutrition` uses them directly). So
+  shopping aggregates **one recipe instance per planned occurrence** — the
+  correct reading against the actual kernel; multiplying would double-count.
 
 ## Phase 8 — Interop & findability
 - **ICS import/export** (module `calendar-interop`): RFC 5545 parse/serialize

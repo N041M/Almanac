@@ -50,9 +50,15 @@ importers:
       '@almanac/food':
         specifier: workspace:*
         version: link:../../kernels/food
+      '@almanac/macros':
+        specifier: workspace:*
+        version: link:../../modules/macros
       '@almanac/meals':
         specifier: workspace:*
         version: link:../../modules/meals
+      '@almanac/shopping':
+        specifier: workspace:*
+        version: link:../../modules/shopping
       '@almanac/tasks':
         specifier: workspace:*
         version: link:../../modules/tasks
@@ -120,7 +126,25 @@ importers:
         specifier: workspace:*
         version: link:../../core
 
+  packages/modules/macros:
+    dependencies:
+      '@almanac/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@almanac/food':
+        specifier: workspace:*
+        version: link:../../kernels/food
+
   packages/modules/meals:
+    dependencies:
+      '@almanac/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@almanac/food':
+        specifier: workspace:*
+        version: link:../../kernels/food
+
+  packages/modules/shopping:
     dependencies:
       '@almanac/core':
         specifier: workspace:*

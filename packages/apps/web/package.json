@@ -11,7 +11,9 @@
   "dependencies": {
     "@almanac/core": "workspace:*",
     "@almanac/food": "workspace:*",
+    "@almanac/macros": "workspace:*",
     "@almanac/meals": "workspace:*",
+    "@almanac/shopping": "workspace:*",
     "@almanac/tasks": "workspace:*",
     "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-sql": "^2.2.0",

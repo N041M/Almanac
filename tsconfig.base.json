@@ -27,7 +27,11 @@
       "@almanac/meals": ["./packages/modules/meals/src/index.ts"],
       "@almanac/tasks": ["./packages/modules/tasks/src/index.ts"],
       "@almanac/tasks/*": ["./packages/modules/tasks/src/*"],
-      "@almanac/meals/*": ["./packages/modules/meals/src/*"]
+      "@almanac/meals/*": ["./packages/modules/meals/src/*"],
+      "@almanac/shopping": ["./packages/modules/shopping/src/index.ts"],
+      "@almanac/shopping/*": ["./packages/modules/shopping/src/*"],
+      "@almanac/macros": ["./packages/modules/macros/src/index.ts"],
+      "@almanac/macros/*": ["./packages/modules/macros/src/*"]
     }
   }
 }
