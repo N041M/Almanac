@@ -4,6 +4,7 @@ import { CS_CZ, EN_US } from '@almanac/core';
 import { notificationPort } from '../notifications/create-notification-port';
 import { storagePort } from './persistence';
 import { useCalendar } from './store';
+import { DEFAULT_CALENDAR_ID } from './calendars';
 import { systemClock } from '../clock';
 
 export type TimeFormat = '12h' | '24h' | null; // null = the locale decides
@@ -17,6 +18,8 @@ interface PersistedSettings {
   language?: string;
   remindersEnabled?: boolean;
   reminderOffsetMin?: number;
+  /** Which calendar new entries land on (absent = the built-in default). */
+  defaultCalendarId?: string;
 }
 
 interface SettingsState {
@@ -28,10 +31,13 @@ interface SettingsState {
   remindersEnabled: boolean;
   /** Minutes before the due time (P6: default offsets in settings). */
   reminderOffsetMin: number;
+  /** Which calendar new entries default to (Apple: "New events default to…"). */
+  defaultCalendarId: string;
 
   load: () => Promise<void>;
   setWeekStartsOn: (weekday: Weekday | null) => Promise<void>;
   setTimeFormat: (format: TimeFormat) => Promise<void>;
+  setDefaultCalendar: (id: string) => Promise<void>;
   /** Returns the resulting enabled state (permission may say no, quietly). */
   setRemindersEnabled: (enabled: boolean) => Promise<boolean>;
   setReminderOffsetMin: (minutes: number) => Promise<void>;
@@ -63,6 +69,7 @@ function decode(raw: string | null): PersistedSettings {
     if (typeof d['reminderOffsetMin'] === 'number' && d['reminderOffsetMin'] >= 0) {
       out.reminderOffsetMin = d['reminderOffsetMin'];
     }
+    if (typeof d['defaultCalendarId'] === 'string') out.defaultCalendarId = d['defaultCalendarId'];
     return out;
   } catch {
     return {}; // corrupt settings slice → defaults, the app never blocks (L5)
@@ -89,6 +96,7 @@ export const useSettings = create<SettingsState>((set, get) => {
     timeFormat: null,
     remindersEnabled: false,
     reminderOffsetMin: 10,
+    defaultCalendarId: DEFAULT_CALENDAR_ID,
 
     load: async () => {
       if (get().loaded) return;
@@ -104,6 +112,7 @@ export const useSettings = create<SettingsState>((set, get) => {
         timeFormat: stored.timeFormat ?? null,
         remindersEnabled: stored.remindersEnabled ?? false,
         reminderOffsetMin: stored.reminderOffsetMin ?? 10,
+        defaultCalendarId: stored.defaultCalendarId ?? DEFAULT_CALENDAR_ID,
       });
       // Restore the language choice (the locale carries formatting too).
       if (stored.language === 'cs' || stored.language === 'en') {
@@ -124,6 +133,14 @@ export const useSettings = create<SettingsState>((set, get) => {
       await persist((d) => {
         if (format === null) delete d.timeFormat;
         else d.timeFormat = format;
+      });
+    },
+
+    setDefaultCalendar: async (id) => {
+      set({ defaultCalendarId: id });
+      await persist((d) => {
+        if (id === DEFAULT_CALENDAR_ID) delete d.defaultCalendarId;
+        else d.defaultCalendarId = id;
       });
     },
 

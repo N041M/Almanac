@@ -15,6 +15,7 @@ import { useMeals } from '../state/meals';
 import { useSettings } from '../state/settings';
 import { Button } from '../ui/Button';
 import { ViewSwitcher } from './ViewSwitcher';
+import { CalendarsPopover } from './CalendarsPopover';
 import { MonthGrid } from './MonthGrid';
 import { WeekGrid } from './WeekGrid';
 import { DayDetail } from './DayDetail';
@@ -167,7 +168,10 @@ export function CalendarView() {
           <Button onClick={goToday}>{t('today')}</Button>
         </div>
         <h2 className="text-base font-semibold capitalize">{title}</h2>
-        <ViewSwitcher />
+        <div className="flex items-center gap-2" data-no-print>
+          <CalendarsPopover />
+          <ViewSwitcher />
+        </div>
       </div>
 
       {view === 'month' && (

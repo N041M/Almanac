@@ -10,7 +10,7 @@ import {
   type TaskItem,
 } from '@almanac/tasks';
 import { notificationPort } from '../notifications/create-notification-port';
-import { isEntryVisible } from './calendars';
+import { DEFAULT_CALENDAR_ID, isEntryVisible } from './calendars';
 import { useSettings } from './settings';
 import { storagePort } from './persistence';
 import { useCalendar } from './store';
@@ -143,13 +143,18 @@ export const useTasks = create<TasksState>((set, get) => {
       const date = picked.date ?? parsed.date;
       const minutes = picked.minutes ?? parsed.minutes;
       const notes = picked.notes?.trim();
+      // New entries default to the settings' default calendar unless a pick
+      // overrides it; the built-in default carries no id (resolves as default).
+      const settingsDefault = useSettings.getState().defaultCalendarId;
+      const calendarId =
+        picked.calendarId ?? (settingsDefault !== DEFAULT_CALENDAR_ID ? settingsDefault : undefined);
       const base = {
         id: crypto.randomUUID(),
         // All tokens consumed (e.g. just "tomorrow")? The raw text is the title.
         title: parsed.title !== '' ? parsed.title : trimmed,
         categories,
         contexts,
-        ...(picked.calendarId !== undefined && { calendarId: picked.calendarId }),
+        ...(calendarId !== undefined && { calendarId }),
         ...(picked.listId !== undefined && { listId: picked.listId }),
         ...(notes !== undefined && notes !== '' && { notes }),
         ...(priority !== undefined && { priority }),

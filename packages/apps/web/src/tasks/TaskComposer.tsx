@@ -4,6 +4,7 @@ import { isValidISODate, type ISODate, type Priority } from '@almanac/core';
 import { parseQuickEntry } from '@almanac/tasks';
 import { useTasks } from '../state/tasks';
 import { DEFAULT_CALENDAR_ID, useCalendars } from '../state/calendars';
+import { useSettings } from '../state/settings';
 import { Button } from '../ui/Button';
 import { tagStyle } from './tag-color';
 import { today } from '../clock';
@@ -34,8 +35,9 @@ export function TaskComposer({ listId }: { listId?: string }) {
   const [showNotes, setShowNotes] = useState(false);
   const [notes, setNotes] = useState('');
   const [kind, setKind] = useState<'task' | 'event'>('task');
-  const [calendarId, setCalendarId] = useState(DEFAULT_CALENDAR_ID);
   const calendars = useCalendars((s) => s.calendars);
+  const defaultCalendarId = useSettings((s) => s.defaultCalendarId);
+  const [calendarId, setCalendarId] = useState(defaultCalendarId);
 
   // Live preview of what the text alone would set — the shorthand teaches
   // itself, and a wrong guess is visible before it lands.
@@ -71,6 +73,7 @@ export function TaskComposer({ listId }: { listId?: string }) {
     setNotes('');
     setShowNotes(false);
     setKind('task');
+    setCalendarId(defaultCalendarId);
   }
 
   const previewChips: string[] = [
