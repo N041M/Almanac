@@ -140,4 +140,67 @@ describe('parseIcs (RFC 5545 subset, P8)', () => {
     expect(parseIcs('not an ics file at all')).toEqual({ events: [], skipped: 0 });
     expect(parseIcs('')).toEqual({ events: [], skipped: 0 });
   });
+
+  it('parses a realistic export (VTIMEZONE, DTSTAMP, X-props, two events)', () => {
+    // Shaped like a Google Calendar export: a VTIMEZONE block that must be
+    // ignored, DTSTAMP/SEQUENCE/STATUS/X- props, and a TZID datetime.
+    const { events, skipped } = parseIcs(
+      ics(
+        'BEGIN:VCALENDAR',
+        'PRODID:-//Google Inc//Google Calendar 70.9054//EN',
+        'VERSION:2.0',
+        'CALSCALE:GREGORIAN',
+        'BEGIN:VTIMEZONE',
+        'TZID:Europe/Prague',
+        'BEGIN:DAYLIGHT',
+        'TZOFFSETFROM:+0100',
+        'TZOFFSETTO:+0200',
+        'DTSTART:19700329T020000',
+        'END:DAYLIGHT',
+        'END:VTIMEZONE',
+        'BEGIN:VEVENT',
+        'DTSTART;TZID=Europe/Prague:20260706T100000',
+        'DTEND;TZID=Europe/Prague:20260706T110000',
+        'DTSTAMP:20260601T120000Z',
+        'UID:evt1@google.com',
+        'SEQUENCE:2',
+        'STATUS:CONFIRMED',
+        'SUMMARY:Planning meeting',
+        'X-GOOGLE-CONFERENCE:https://meet.google.com/abc',
+        'END:VEVENT',
+        'BEGIN:VEVENT',
+        'DTSTART;VALUE=DATE:20261225',
+        'DTEND;VALUE=DATE:20261226',
+        'DTSTAMP:20260601T120000Z',
+        'UID:evt2@google.com',
+        'SUMMARY:Christmas',
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ),
+    );
+    expect(skipped).toBe(0);
+    expect(events.map((e) => e.uid)).toEqual(['evt1@google.com', 'evt2@google.com']);
+    // 10:00 Prague (UTC+2 in July) = 08:00 UTC.
+    expect(events[0]?.when).toEqual({
+      span: { startUtc: Date.UTC(2026, 6, 6, 8, 0), endUtc: Date.UTC(2026, 6, 6, 9, 0), zone: 'Europe/Prague' },
+    });
+    expect(events[1]?.when).toEqual({ allDay: '2026-12-25' });
+  });
+
+  it('documents DST-boundary handling for a TZID wall time', () => {
+    // 2026-03-29 02:30 Prague is inside the spring-forward gap; the offset
+    // resolves via Intl and never throws — the instant is defined, not dropped.
+    const { events, skipped } = parseIcs(
+      ics(
+        'BEGIN:VEVENT',
+        'UID:dst@x',
+        'SUMMARY:Edge',
+        'DTSTART;TZID=Europe/Prague:20260329T023000',
+        'END:VEVENT',
+      ),
+    );
+    expect(skipped).toBe(0);
+    const when = events[0]?.when;
+    expect(when !== undefined && 'span' in when && Number.isFinite(when.span.startUtc)).toBe(true);
+  });
 });

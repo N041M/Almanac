@@ -226,14 +226,32 @@ export const useTasks = create<TasksState>((set, get) => {
 
     importEvents: async (events) => {
       if (events.length === 0) return;
-      replace([...get().items, ...events]);
+      // Upsert by id: an imported event carries a stable id derived from its ICS
+      // UID, so re-importing the same file overwrites rather than duplicates.
+      const incoming = new Map(events.map((e) => [e.id, e]));
+      const previous = new Map(
+        get().items.filter((i) => incoming.has(i.id)).map((i) => [i.id, i]),
+      );
+      const merged = get().items.map((item) => incoming.get(item.id) ?? item);
+      for (const event of events) if (!previous.has(event.id)) merged.push(event);
+      replace(merged);
       for (const event of events) await quietly(() => tasksStore.save(event));
-      const ids = new Set(events.map((e) => e.id));
       useUndo.getState().push({
         labelKey: 'interop:importIcs',
         apply: async () => {
-          replace(get().items.filter((item) => !ids.has(item.id)));
-          for (const id of ids) await quietly(() => tasksStore.remove(id));
+          // Undo restores each imported id to its pre-import state: a prior
+          // version is revived, a brand-new one is dropped; others untouched.
+          replace(
+            get()
+              .items.map((item) => (incoming.has(item.id) ? previous.get(item.id) : item))
+              .filter((item): item is TaskItem => item !== undefined),
+          );
+          for (const id of incoming.keys()) {
+            const prior = previous.get(id);
+            await quietly(() =>
+              prior !== undefined ? tasksStore.save(prior) : tasksStore.remove(id),
+            );
+          }
         },
       });
     },

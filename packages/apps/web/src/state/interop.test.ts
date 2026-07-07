@@ -53,4 +53,26 @@ describe('ICS import/export wiring (P8)', () => {
     expect(useInterop.getState().lastImport).toEqual({ imported: 0, skipped: 0 });
     expect(useTasks.getState().items).toHaveLength(0);
   });
+
+  it('re-importing the same file upserts instead of duplicating', async () => {
+    await useInterop.getState().importText(SAMPLE);
+    await useInterop.getState().importText(SAMPLE);
+    // Same UID → same stable id → one event, not two.
+    expect(useTasks.getState().items).toHaveLength(1);
+  });
+
+  it('re-importing an updated event overwrites the earlier version', async () => {
+    await useInterop.getState().importText(SAMPLE);
+    await useInterop.getState().importText(SAMPLE.replace('SUMMARY:Conference', 'SUMMARY:Conf 2.0'));
+    const items = useTasks.getState().items;
+    expect(items).toHaveLength(1);
+    expect(items[0]?.title).toBe('Conf 2.0');
+  });
+
+  it('survives an export→import round-trip with stable identity', async () => {
+    await useInterop.getState().importText(SAMPLE);
+    const exported = useInterop.getState().exportText();
+    await useInterop.getState().importText(exported);
+    expect(useTasks.getState().items).toHaveLength(1);
+  });
 });
