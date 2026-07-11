@@ -4,6 +4,8 @@
 // all randomness via the injected Rng, all dates as ISODate values.
 
 export * from './engine/index.js';
+export type { MealSlot } from './slots.js';
+export { DEFAULT_MEAL_SLOTS, LEGACY_SLOT_ID, MEALS_SLOTS_VERSION } from './slots.js';
 export type { MealsDaySlice } from './slice.js';
 export { MEALS_NAMESPACE, MEALS_SLICE_VERSION, mealsDayCodec } from './slice.js';
 export { mealsManifest } from './manifest.js';

@@ -7,6 +7,7 @@ import { Button } from '../ui/Button';
 import { MealWeekList } from './MealWeekList';
 import { MealBreakdown } from './MealBreakdown';
 import { MealsManager } from './MealsManager';
+import { MealSlotsSettings } from './MealSlotsSettings';
 import { today } from '../clock';
 
 /**
@@ -113,7 +114,7 @@ export function MealsView() {
           </select>
         </label>
         <Button variant="solid" onClick={() => void generate()} disabled={items.length === 0}>
-          {t('generateWeek')}
+          {t('rerollWeek')}
         </Button>
         <Button onClick={() => void commit()}>{t('nextWeek')}</Button>
       </section>
@@ -126,6 +127,10 @@ export function MealsView() {
           <h3 className="mb-3 text-sm font-medium text-ink-muted">{t('whyThisPick')}</h3>
           <MealBreakdown />
         </aside>
+      </section>
+
+      <section className="rounded-2xl border border-line bg-surface-raised p-4 shadow-sm">
+        <MealSlotsSettings />
       </section>
 
       <section className="rounded-2xl border border-line bg-surface-raised p-4 shadow-sm">

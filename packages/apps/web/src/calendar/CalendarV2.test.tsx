@@ -31,7 +31,7 @@ beforeEach(async () => {
     items: [],
     settings: null,
     plan: [],
-    breakdownIndex: null,
+    breakdownCell: null,
     nutritionChoices: {},
     nutritionPick: {},
     dayMeals: {},
@@ -49,7 +49,9 @@ async function placeMealOnToday(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText('Meal name'), 'Goulash');
   await user.click(screen.getByRole('button', { name: 'Add meal' }));
   const recipeId = useMeals.getState().items[0]?.recipeId ?? '';
-  useMeals.setState({ mealClipboard: { recipeId, locked: false, breakdown: null } });
+  useMeals.setState({
+    mealClipboard: { slots: { dinner: { recipeId, locked: false, breakdown: null } } },
+  });
   await useMeals.getState().pasteMeal(today());
   await user.click(screen.getByRole('button', { name: 'Calendar' }));
   // the chip renders once the day records reload

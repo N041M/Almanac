@@ -39,7 +39,7 @@ export function currentWeekStart(): ISODate {
   return startOfWeek(today(), 1);
 }
 
-export const EMPTY_SLICE: MealsDaySlice = { recipeId: null, locked: false, breakdown: null };
+export const EMPTY_SLICE: MealsDaySlice = { slots: {} };
 
 /** Persist quietly: a failed write degrades to session-only state (L5). */
 export async function quietly(write: () => Promise<void>): Promise<void> {

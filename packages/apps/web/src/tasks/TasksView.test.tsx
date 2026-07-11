@@ -31,7 +31,7 @@ beforeEach(async () => {
     items: [],
     settings: null,
     plan: [],
-    breakdownIndex: null,
+    breakdownCell: null,
     nutritionChoices: {},
     nutritionPick: {},
     dayMeals: {},

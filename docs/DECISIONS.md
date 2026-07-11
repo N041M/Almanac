@@ -5,6 +5,38 @@ to depart on), with rationale. Newest first. Keep entries short.
 
 ---
 
+## D8 — Meals: several meals a day (§6 generalized from day → cell)
+
+**Decided:** 2026-07-07 · **Status:** accepted · **Design ref:** §6 (a deliberate
+change to the §6 contract, made with the user's explicit go-ahead)
+
+§6 planned **one meal per day** (`WeekPlan` = 7 entries, one `recipeId` each).
+Real meal planning needs breakfast/lunch/dinner. The engine's unit generalizes
+from a **day** to a **cell = (day × meal slot)**. The algorithm itself is
+unchanged: gates → scorers → weighted `draw` run per cell, day-major in slot
+order, sharing the cooldown / week-repeat / tag history across every cell.
+
+- **Meal slots are configuration** — `MealSlot {id, name}` under `meals:slots`;
+  default **Breakfast · Lunch · Dinner**, adjustable (more, fewer, renamed).
+- `PlanEntry.slots: Record<slotId, SlotEntry>`; **lock, breakdown and re-roll are
+  per cell**. `rerollDay` → **`rerollCell(dayIndex, slotId)`**. The whole-week
+  generate (which already preserved locked cells) is surfaced as **"Re-roll
+  week"**.
+- **Slot eligibility** (additive): `PlanItem.slots?: string[]` — a recipe may
+  declare which slots it suits (absent/empty = any). It is a new **relaxable
+  gate**, kept *longest* in the ladder and relaxed **last**: an empty slot is
+  worse than a wrong-slot meal (L5).
+- Cooldown is in **days**, so a recipe cannot repeat across one day's slots
+  (d = 0 < cooldown) — the same rule that spaces it across the week.
+- `avoidSameTag` now compares a cell with the **previous cell in order** (within
+  a day: the previous meal; across days: the last meal of the day before).
+- **Back-compat:** a legacy single-meal day slice decodes into the **dinner** slot.
+- **Ripple (and more correct):** shopping aggregates **all** of a day's meals;
+  macros sum **all** planned meals; the month chip shows a representative meal.
+
+The §12 statistical/anti-pattern suite is unchanged in intent — run with a single
+slot it is exactly §6's original behaviour, and it still passes.
+
 ## D7 — Event/task shape pinned before the first event persists
 
 **Decided:** 2026-07-05 · **Status:** accepted · **Design ref:** §8 tasks, ROADMAP P6 entry

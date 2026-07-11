@@ -50,7 +50,7 @@ export function TaskComposer({ listId }: { listId?: string }) {
   );
 
   const inputClass =
-    'rounded-lg border border-line bg-surface-raised px-2 py-1 text-sm text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-accent';
+    'border border-line bg-surface-raised px-2 py-1 text-sm text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-accent';
 
   function submit(): void {
     if (text.trim() === '') return;
@@ -86,7 +86,7 @@ export function TaskComposer({ listId }: { listId?: string }) {
 
   return (
     <form
-      className="space-y-2 rounded-2xl border border-line bg-surface-raised p-3 shadow-sm"
+      className="space-y-2 border border-line bg-surface-raised p-3 shadow-sm"
       onSubmit={(e) => {
         e.preventDefault();
         submit();
@@ -98,13 +98,13 @@ export function TaskComposer({ listId }: { listId?: string }) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         autoFocus
-        className="w-full rounded-xl border border-line bg-surface px-4 py-2.5 text-sm text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-accent"
+        className="w-full border border-line bg-surface px-4 py-2.5 text-sm text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-accent"
       />
       {previewChips.length > 0 && (
         <p className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
           <span>{t('understood')}</span>
           {previewChips.map((chip) => (
-            <span key={chip} className="rounded bg-accent-soft/60 px-1.5 py-0.5">
+            <span key={chip} className="bg-accent-soft/60 px-1.5 py-0.5">
               {chip}
             </span>
           ))}
@@ -121,7 +121,7 @@ export function TaskComposer({ listId }: { listId?: string }) {
               aria-checked={kind === k}
               onClick={() => setKind(k)}
               className={[
-                'rounded-full border px-2 py-0.5 text-xs transition-colors',
+                'border px-2 py-0.5 text-xs transition-colors',
                 'focus-visible:outline-2 focus-visible:outline-accent',
                 kind === k
                   ? 'border-accent bg-accent text-accent-ink'
@@ -173,7 +173,7 @@ export function TaskComposer({ listId }: { listId?: string }) {
               aria-checked={priority === p}
               onClick={() => setPriority(priority === p ? undefined : p)}
               className={[
-                'rounded-full border px-2 py-0.5 text-xs transition-colors',
+                'border px-2 py-0.5 text-xs transition-colors',
                 'focus-visible:outline-2 focus-visible:outline-accent',
                 priority === p
                   ? 'border-accent bg-accent text-accent-ink'
@@ -203,7 +203,7 @@ export function TaskComposer({ listId }: { listId?: string }) {
           .map((tag) => tag.trim())
           .filter((tag) => tag !== '')
           .map((tag) => (
-            <span key={tag} className="rounded px-1.5 py-0.5 text-xs" style={tagStyle(tag)}>
+            <span key={tag} className="px-1.5 py-0.5 text-xs" style={tagStyle(tag)}>
               {tag}
             </span>
           ))}
@@ -229,7 +229,7 @@ export function TaskComposer({ listId }: { listId?: string }) {
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
-          className="w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-accent"
+          className="w-full border border-line bg-surface px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-accent"
         />
       )}
     </form>

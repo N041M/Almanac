@@ -6,6 +6,7 @@ import type { MacroField, MacroTargets, MacrosDaySlice } from '@almanac/macros';
 import { catalog, quietly } from './meals-services';
 import { dayStore } from './persistence';
 import { macrosStore } from './macros-services';
+import { dayRecipeIds } from './meals-day';
 import { today } from '../clock';
 
 const EMPTY_SLICE: MacrosDaySlice = { entries: [], plannedServings: 1 };
@@ -17,8 +18,8 @@ export interface MacrosState {
   date: ISODate;
   targets: MacroTargets;
   slice: MacrosDaySlice;
-  /** The meal planned on `date`, read from the shared meals slice (not an import cycle). */
-  plannedRecipe: Recipe | null;
+  /** The meals planned on `date` (one per slot), read from the shared meals slice. */
+  plannedRecipes: Recipe[];
   ingredients: Readonly<Record<string, Ingredient>>;
 
   load: () => Promise<void>;
@@ -34,13 +35,15 @@ export const useMacros = create<MacrosState>((set, get) => {
   async function readDay(
     date: ISODate,
     recipes: Readonly<Record<string, Recipe>>,
-  ): Promise<{ slice: MacrosDaySlice; plannedRecipe: Recipe | null }> {
+  ): Promise<{ slice: MacrosDaySlice; plannedRecipes: Recipe[] }> {
     const [slice, mealSlice] = await Promise.all([
       macrosStore.readDay(date),
       dayStore.readSlice(date, mealsDayCodec),
     ]);
-    const plannedRecipe = mealSlice.recipeId === null ? null : (recipes[mealSlice.recipeId] ?? null);
-    return { slice, plannedRecipe };
+    const plannedRecipes = dayRecipeIds(mealSlice)
+      .map((id) => recipes[id])
+      .filter((recipe): recipe is Recipe => recipe !== undefined);
+    return { slice, plannedRecipes };
   }
 
   async function writeSlice(next: MacrosDaySlice): Promise<void> {
@@ -54,7 +57,7 @@ export const useMacros = create<MacrosState>((set, get) => {
     date: today(),
     targets: {},
     slice: EMPTY_SLICE,
-    plannedRecipe: null,
+    plannedRecipes: [],
     ingredients: {},
 
     load: async () => {
@@ -71,8 +74,8 @@ export const useMacros = create<MacrosState>((set, get) => {
         for (const recipe of recipeList) recipes[recipe.id] = recipe;
         const ingredients: Record<string, Ingredient> = {};
         for (const ingredient of ingredientList) ingredients[ingredient.id] = ingredient;
-        const { slice, plannedRecipe } = await readDay(date, recipes);
-        set({ loaded: true, targets, ingredients, slice, plannedRecipe });
+        const { slice, plannedRecipes } = await readDay(date, recipes);
+        set({ loaded: true, targets, ingredients, slice, plannedRecipes });
       } finally {
         set({ loading: false });
       }
@@ -84,8 +87,8 @@ export const useMacros = create<MacrosState>((set, get) => {
       set({ date });
       const list = await catalog.listRecipes();
       for (const recipe of list) recipes[recipe.id] = recipe;
-      const { slice, plannedRecipe } = await readDay(date, recipes);
-      if (get().date === date) set({ slice, plannedRecipe });
+      const { slice, plannedRecipes } = await readDay(date, recipes);
+      if (get().date === date) set({ slice, plannedRecipes });
     },
 
     setTarget: async (field, value) => {

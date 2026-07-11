@@ -3,13 +3,15 @@ import { addDays, getSlice } from '@almanac/core';
 import type { PlanItem, Settings, WeekPlan } from './engine/types.js';
 import { dayNameOf } from './engine/generate-week.js';
 import { mealsDayCodec, MEALS_NAMESPACE, type MealsDaySlice } from './slice.js';
+import { DEFAULT_MEAL_SLOTS, MEALS_SLOTS_VERSION, type MealSlot } from './slots.js';
 
-// The module's own (non-day) state: plan items + settings, one key each,
-// versioned envelopes like every slice (§11). Reads never throw — corrupt or
-// unknown-version payloads degrade to defaults in isolation (L5).
+// The module's own (non-day) state: plan items, settings, and the meal-slot
+// config, one key each, versioned envelopes like every slice (§11). Reads never
+// throw — corrupt or unknown-version payloads degrade to defaults in isolation.
 
 const ITEMS_KEY = 'meals:items';
 const SETTINGS_KEY = 'meals:settings';
+const SLOTS_KEY = 'meals:slots';
 export const MEALS_ITEMS_VERSION = 1;
 export const MEALS_SETTINGS_VERSION = 1;
 
@@ -42,13 +44,28 @@ function decodeItem(value: unknown): PlanItem | null {
   if (!isRecord(value) || typeof value['recipeId'] !== 'string') return null;
   const weight = asFinite(value['weight']);
   const cooldown = asFinite(value['cooldownDays']);
+  const slots = Array.isArray(value['slots'])
+    ? value['slots'].filter((s): s is string => typeof s === 'string')
+    : [];
   return {
     recipeId: value['recipeId'],
     weight: weight !== undefined && weight >= 0 ? weight : 1,
     cooldownDays: cooldown !== undefined && cooldown >= 0 ? cooldown : null,
     enabled: value['enabled'] !== false,
     lastServed: typeof value['lastServed'] === 'string' ? value['lastServed'] : null,
+    ...(slots.length > 0 && { slots }),
   };
+}
+
+/** The meal-slot config; anything unusable falls back to the three defaults (L5). */
+function decodeSlotDefs(value: unknown): MealSlot[] {
+  if (!Array.isArray(value)) return [...DEFAULT_MEAL_SLOTS];
+  const slots: MealSlot[] = [];
+  for (const raw of value) {
+    if (!isRecord(raw) || typeof raw['id'] !== 'string' || raw['id'] === '') continue;
+    slots.push({ id: raw['id'], name: typeof raw['name'] === 'string' ? raw['name'] : raw['id'] });
+  }
+  return slots.length > 0 ? slots : [...DEFAULT_MEAL_SLOTS];
 }
 
 function decodeSettings(value: unknown, fallbackWeekStart: ISODate): Settings {
@@ -78,6 +95,9 @@ export interface MealsStore {
   /** `fallbackWeekStart` seeds the default when nothing (usable) is stored. */
   getSettings(fallbackWeekStart: ISODate): Promise<Settings>;
   saveSettings(settings: Settings): Promise<void>;
+  /** The configured meal slots (default: Breakfast/Lunch/Dinner). */
+  getSlots(): Promise<MealSlot[]>;
+  saveSlots(slots: ReadonlyArray<MealSlot>): Promise<void>;
   /** The week's seven day slices as a WeekPlan (absent days = empty slots). */
   readWeek(weekStart: ISODate): Promise<WeekPlan>;
   /** Persist each entry to its day slice. */
@@ -132,6 +152,9 @@ export function createMealsStore(
       decodeSettings(await readKey(SETTINGS_KEY, MEALS_SETTINGS_VERSION), fallbackWeekStart),
     saveSettings: (settings) => writeKey(SETTINGS_KEY, MEALS_SETTINGS_VERSION, settings),
 
+    getSlots: async () => decodeSlotDefs(await readKey(SLOTS_KEY, MEALS_SLOTS_VERSION)),
+    saveSlots: (slots) => writeKey(SLOTS_KEY, MEALS_SLOTS_VERSION, slots),
+
     readWeek: async (weekStart) => {
       // One batched range read (readMany underneath) instead of 7 round-trips.
       const days = await dayStore.getRange(weekStart, addDays(weekStart, 6), [
@@ -140,16 +163,12 @@ export function createMealsStore(
       return days.map((day) => ({
         dayName: dayNameOf(day.date),
         date: day.date,
-        ...(getSlice<MealsDaySlice>(day, MEALS_NAMESPACE) ?? mealsDayCodec.default()),
+        slots: (getSlice<MealsDaySlice>(day, MEALS_NAMESPACE) ?? mealsDayCodec.default()).slots,
       }));
     },
     writeWeek: async (plan) => {
       for (const entry of plan) {
-        await dayStore.writeSlice(entry.date, mealsDayCodec, {
-          recipeId: entry.recipeId,
-          locked: entry.locked,
-          breakdown: entry.breakdown,
-        });
+        await dayStore.writeSlice(entry.date, mealsDayCodec, { slots: entry.slots });
       }
     },
     readDay: (date) => dayStore.readSlice(date, mealsDayCodec),

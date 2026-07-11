@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { addDays, createSeededRng, diffDays } from '@almanac/core';
 import type { Rng } from '@almanac/core';
 import type { Recipe } from '@almanac/food';
-import type { PlanItem, Settings, WeekPlan } from './types.js';
+import type { PlanEntry, PlanItem, Settings, WeekPlan } from './types.js';
 import { draw } from './draw.js';
 import { generateWeek } from './generate-week.js';
 import { commitWeek } from './commit-week.js';
@@ -11,9 +11,12 @@ import { commitWeek } from './commit-week.js';
 // clustering and predictability are different problems — a soft recency
 // penalty plus a probabilistic draw must produce weight-proportional variety,
 // honour cooldowns, and never collapse into a fixed rotation.
+//
+// One meal per day (slot 'd') keeps the statistics comparable to §6's original.
 
-// 2026-07-06 is a Monday.
 const MONDAY = '2026-07-06';
+const SLOTS = ['d'];
+const rid = (entry: PlanEntry | undefined): string | null => entry?.slots['d']?.recipeId ?? null;
 
 function item(recipeId: string, overrides: Partial<PlanItem> = {}): PlanItem {
   return { recipeId, weight: 1, cooldownDays: null, enabled: true, lastServed: null, ...overrides };
@@ -23,14 +26,12 @@ function recipe(id: string, tags: string[] = []): [string, Recipe] {
   return [id, { id, name: `Recipe ${id}`, tags, ingredients: [], servings: 2 }];
 }
 
-const RECIPES = new Map(
-  ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8'].map((id) => recipe(id)),
-);
+const RECIPES = new Map(['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8'].map((id) => recipe(id)));
 
 function settings(overrides: Partial<Settings> = {}): Settings {
   return {
     defaultCooldown: 0,
-    variety: 0.25, // temperature = 0.45 + 0.25 * 2.2 = 1: weights pass through
+    variety: 0.25,
     noWeekRepeat: false,
     avoidSameTag: false,
     weekStart: MONDAY,
@@ -39,17 +40,12 @@ function settings(overrides: Partial<Settings> = {}): Settings {
 }
 
 /** Generate → commit `weeks` times; returns every committed week in order. */
-function runWeeks(
-  startItems: PlanItem[],
-  config: Settings,
-  rng: Rng,
-  weeks: number,
-): WeekPlan[] {
+function runWeeks(startItems: PlanItem[], config: Settings, rng: Rng, weeks: number): WeekPlan[] {
   let items = startItems;
   let current = config;
   const plans: WeekPlan[] = [];
   for (let w = 0; w < weeks; w++) {
-    const plan = generateWeek(items, RECIPES, current, [], rng);
+    const plan = generateWeek(items, RECIPES, current, SLOTS, [], rng);
     plans.push(plan);
     const committed = commitWeek(items, plan);
     items = committed.items;
@@ -62,7 +58,8 @@ function counts(plans: WeekPlan[]): Map<string, number> {
   const tally = new Map<string, number>();
   for (const plan of plans) {
     for (const entry of plan) {
-      if (entry.recipeId !== null) tally.set(entry.recipeId, (tally.get(entry.recipeId) ?? 0) + 1);
+      const id = rid(entry);
+      if (id !== null) tally.set(id, (tally.get(id) ?? 0) + 1);
     }
   }
   return tally;
@@ -113,7 +110,6 @@ describe('(a) empirical frequency ≈ proportional to weights', () => {
     expect(favourite).toBeGreaterThan(often);
     expect(often).toBeGreaterThan(normal);
     expect(normal).toBeGreaterThan(rare);
-    // The recency penalty compresses the raw 3.5/0.4 ratio; it must stay >> 1.
     expect(favourite / rare).toBeGreaterThan(2);
   });
 });
@@ -121,19 +117,15 @@ describe('(a) empirical frequency ≈ proportional to weights', () => {
 describe('(b) cooldown is honoured across committed weeks', () => {
   it('minimum gap between repeats ≥ cooldown', () => {
     const items = [...RECIPES.keys()].map((id) => item(id));
-    const plans = runWeeks(
-      items,
-      settings({ defaultCooldown: 3, noWeekRepeat: true }),
-      createSeededRng(11),
-      100,
-    );
+    const plans = runWeeks(items, settings({ defaultCooldown: 3, noWeekRepeat: true }), createSeededRng(11), 100);
     const served = new Map<string, string[]>();
     for (const plan of plans) {
       for (const entry of plan) {
-        if (entry.recipeId === null) continue;
-        const dates = served.get(entry.recipeId) ?? [];
+        const id = rid(entry);
+        if (id === null) continue;
+        const dates = served.get(id) ?? [];
         dates.push(entry.date);
-        served.set(entry.recipeId, dates);
+        served.set(id, dates);
       }
     }
     expect(served.size).toBeGreaterThan(0);
@@ -147,7 +139,6 @@ describe('(b) cooldown is honoured across committed weeks', () => {
 
 describe('(c) the sequence is not periodic', () => {
   it('two seeds branching from the same history differ in ≥1 slot (high probability)', () => {
-    // Build shared history first, then branch.
     const items = [...RECIPES.keys()].map((id) => item(id));
     const warmup = runWeeks(items, settings(), createSeededRng(1), 4);
     let history = items;
@@ -155,9 +146,9 @@ describe('(c) the sequence is not periodic', () => {
 
     let differing = 0;
     for (let trial = 0; trial < 20; trial++) {
-      const a = generateWeek(history, RECIPES, settings(), [], createSeededRng(1000 + trial));
-      const b = generateWeek(history, RECIPES, settings(), [], createSeededRng(5000 + trial));
-      if (a.some((entry, i) => entry.recipeId !== b[i]?.recipeId)) differing += 1;
+      const a = generateWeek(history, RECIPES, settings(), SLOTS, [], createSeededRng(1000 + trial));
+      const b = generateWeek(history, RECIPES, settings(), SLOTS, [], createSeededRng(5000 + trial));
+      if (a.some((entry, i) => rid(entry) !== rid(b[i]))) differing += 1;
     }
     expect(differing).toBeGreaterThanOrEqual(18);
   });
@@ -168,16 +159,14 @@ describe('(c) the sequence is not periodic', () => {
     const transitions = new Map<string, Map<string, number>>();
     for (const plan of plans) {
       for (let i = 1; i < plan.length; i++) {
-        const prev = plan[i - 1]?.recipeId;
-        const next = plan[i]?.recipeId;
+        const prev = rid(plan[i - 1]);
+        const next = rid(plan[i]);
         if (prev == null || next == null) continue;
         const row = transitions.get(prev) ?? new Map<string, number>();
         row.set(next, (row.get(next) ?? 0) + 1);
         transitions.set(prev, row);
       }
     }
-    // H(next | previous), weighted by how often each previous occurs. A fixed
-    // rotation ("next" a function of "previous") would be exactly 0 bits.
     let total = 0;
     let weighted = 0;
     for (const row of transitions.values()) {
@@ -191,16 +180,12 @@ describe('(c) the sequence is not periodic', () => {
 
 describe('(d) the variety slider is real', () => {
   it('lower variety measurably increases predictability of the next pick', () => {
-    // Recent, staggered history (1..8 days ago) so the recency factor actually
-    // separates the candidates — that separation is what low variety sharpens.
-    const items = [...RECIPES.keys()].map((id, i) =>
-      item(id, { lastServed: addDays('2026-07-05', -i) }),
-    );
+    const items = [...RECIPES.keys()].map((id, i) => item(id, { lastServed: addDays('2026-07-05', -i) }));
     const mondayEntropy = (variety: number): number => {
       const tally = new Map<string, number>();
       for (let seed = 0; seed < 300; seed++) {
-        const plan = generateWeek(items, RECIPES, settings({ variety }), [], createSeededRng(seed));
-        const id = plan[0]?.recipeId;
+        const plan = generateWeek(items, RECIPES, settings({ variety }), SLOTS, [], createSeededRng(seed));
+        const id = rid(plan[0]);
         if (id != null) tally.set(id, (tally.get(id) ?? 0) + 1);
       }
       return entropyBits(tally);
@@ -212,22 +197,22 @@ describe('(d) the variety slider is real', () => {
 describe('degradation ladders under pressure (§12)', () => {
   it('3 meals + noWeekRepeat still fills all 7 days', () => {
     const items = [item('r1'), item('r2'), item('r3')];
-    const plan = generateWeek(items, RECIPES, settings({ noWeekRepeat: true }), [], createSeededRng(2));
-    expect(plan.every((entry) => entry.recipeId !== null)).toBe(true);
+    const plan = generateWeek(items, RECIPES, settings({ noWeekRepeat: true }), SLOTS, [], createSeededRng(2));
+    expect(plan.every((entry) => rid(entry) !== null)).toBe(true);
   });
 
   it('everything on a long cooldown still fills', () => {
     const items = [...RECIPES.keys()].map((id) => item(id, { lastServed: '2026-07-05' }));
     const plan = generateWeek(
-      items, RECIPES, settings({ defaultCooldown: 30, noWeekRepeat: true }), [], createSeededRng(3),
+      items, RECIPES, settings({ defaultCooldown: 30, noWeekRepeat: true }), SLOTS, [], createSeededRng(3),
     );
-    expect(plan.every((entry) => entry.recipeId !== null)).toBe(true);
+    expect(plan.every((entry) => rid(entry) !== null)).toBe(true);
   });
 
   it('zero enabled meals ⇒ a week of null slots, no crash', () => {
     const items = [...RECIPES.keys()].map((id) => item(id, { enabled: false }));
-    const plan = generateWeek(items, RECIPES, settings(), [], createSeededRng(4));
+    const plan = generateWeek(items, RECIPES, settings(), SLOTS, [], createSeededRng(4));
     expect(plan).toHaveLength(7);
-    expect(plan.every((entry) => entry.recipeId === null && entry.breakdown === null)).toBe(true);
+    expect(plan.every((entry) => rid(entry) === null && entry.slots['d']?.breakdown === null)).toBe(true);
   });
 });

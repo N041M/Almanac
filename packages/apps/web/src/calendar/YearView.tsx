@@ -7,6 +7,7 @@ import {
   type ISODate,
 } from '@almanac/core';
 import { MEALS_NAMESPACE, type MealsDaySlice } from '@almanac/meals';
+import { dayRecipeIds } from '../state/meals-day';
 import { useCalendar } from '../state/store';
 import { useSettings } from '../state/settings';
 import { useTasks } from '../state/tasks';
@@ -49,7 +50,7 @@ export function YearView({ year }: { year: number }) {
       if (n > 0) map.set(date, (map.get(date) ?? 0) + n);
     };
     for (const [date, day] of Object.entries(days)) {
-      if (getSlice<MealsDaySlice>(day, MEALS_NAMESPACE)?.recipeId != null) bump(date);
+      bump(date, dayRecipeIds(getSlice<MealsDaySlice>(day, MEALS_NAMESPACE)).length);
       if (getSlice<DayMark>(day, DAY_MARK_NAMESPACE)?.starred === true) bump(date);
     }
     for (const [date, list] of occurrences(`${year}-01-01` as ISODate, `${year}-12-31` as ISODate)) {

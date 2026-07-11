@@ -9,7 +9,9 @@ import { useTasks } from '../state/tasks';
 
 /** A day carrying a planned meal, so it registers on the density grid. */
 function dayWithMeal(date: ISODate): Day {
-  return withSlice(emptyDay(date), MEALS_NAMESPACE, { recipeId: 'r1', locked: false, breakdown: null });
+  return withSlice(emptyDay(date), MEALS_NAMESPACE, {
+    slots: { dinner: { recipeId: 'r1', locked: false, breakdown: null } },
+  });
 }
 
 beforeEach(() => {

@@ -9,6 +9,7 @@ import { useTasks } from '../state/tasks';
 import { useSubscriptions } from '../state/subscriptions';
 import { feedOccurrences } from '../state/feed-occurrences';
 import { viewerZone } from '../state/viewer-zone';
+import { representativeRecipeId } from '../state/meals-day';
 
 /**
  * The grids' view of module day-contributions: a meal chip per date (from
@@ -59,7 +60,7 @@ export function useDayChips(dates: ReadonlyArray<ISODate>): {
     chipFor: (date) => {
       const day = days[date];
       if (day === undefined || !loaded) return undefined;
-      const recipeId = getSlice<MealsDaySlice>(day, MEALS_NAMESPACE)?.recipeId;
+      const recipeId = representativeRecipeId(getSlice<MealsDaySlice>(day, MEALS_NAMESPACE));
       if (recipeId == null) return undefined;
       return recipes[recipeId]?.name ?? t('removedMeal');
     },

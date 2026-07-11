@@ -4,6 +4,7 @@ import { bcp47, dateFromISO, type ISODate } from '@almanac/core';
 import { useCalendar } from '../state/store';
 import { useMeals } from '../state/meals';
 import { useTasks } from '../state/tasks';
+import { representativeRecipeId } from '../state/meals-day';
 import { Button } from '../ui/Button';
 
 /**
@@ -27,17 +28,16 @@ export function DayDetail({
   // contributes nothing (L5).
   const load = useMeals((s) => s.load);
   const loadDayMeal = useMeals((s) => s.loadDayMeal);
-  const plan = useMeals((s) => s.plan);
-  const reroll = useMeals((s) => s.reroll);
   const copyMeal = useMeals((s) => s.copyMeal);
   const pasteMeal = useMeals((s) => s.pasteMeal);
   const hasClipboard = useMeals((s) => s.mealClipboard !== null);
-  // The plan is authoritative for its dates — an empty slot there must not
-  // fall through to the (possibly stale) out-of-week cache. `null` = a meal
-  // whose recipe no longer exists.
+  // A representative planned meal for this day (the plan is authoritative for
+  // its dates; other dates come from the read-through cache). `null` = a meal
+  // whose recipe no longer exists; `undefined` = nothing planned.
   const plannedMeal = useMeals((s): string | null | undefined => {
     const entry = s.plan.find((e) => e.date === date);
-    const recipeId = entry !== undefined ? entry.recipeId : (s.dayMeals[date] ?? null);
+    const slice = entry !== undefined ? { slots: entry.slots } : s.dayMeals[date];
+    const recipeId = representativeRecipeId(slice);
     if (recipeId === null) return undefined;
     return s.recipes[recipeId]?.name ?? null;
   });
@@ -125,14 +125,6 @@ export function DayDetail({
         <Button onClick={() => void toggleStar(date)}>
           {isStarred ? t('unstar') : t('star')}
         </Button>
-        {(() => {
-          const index = plan.findIndex((e) => e.date === date);
-          const entry = index === -1 ? undefined : plan[index];
-          if (entry?.recipeId == null || entry.locked) return null;
-          return (
-            <Button onClick={() => void reroll(index)}>{t('meals:rerollDay')}</Button>
-          );
-        })()}
         {plannedMeal !== undefined && (
           <Button onClick={() => copyMeal(date)}>{t('meals:copyMeal')}</Button>
         )}

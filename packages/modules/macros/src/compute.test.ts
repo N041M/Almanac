@@ -48,7 +48,7 @@ describe('macro-math', () => {
 describe('computeDayMacros (§8)', () => {
   it('auto-fills one serving of the planned meal plus manual entries', () => {
     const result = computeDayMacros({
-      plannedRecipe: bowl,
+      plannedRecipes: [bowl],
       ingredientsById: ingredients,
       entries: [{ id: 'a', label: 'Apple', macros: { kcal: 95, carbsG: 25 } }],
       targets: { kcal: 2000, proteinG: 150 },
@@ -62,7 +62,7 @@ describe('computeDayMacros (§8)', () => {
 
   it('scales the planned meal by servings eaten (0 excludes it)', () => {
     const zero = computeDayMacros({
-      plannedRecipe: bowl,
+      plannedRecipes: [bowl],
       ingredientsById: ingredients,
       entries: [],
       plannedServings: 0,
@@ -74,7 +74,7 @@ describe('computeDayMacros (§8)', () => {
 
   it('degrades to just manual entries when no meal is planned (L5)', () => {
     const result = computeDayMacros({
-      plannedRecipe: null,
+      plannedRecipes: [],
       ingredientsById: ingredients,
       entries: [{ id: 'a', label: 'Shake', macros: { kcal: 200, proteinG: 30 } }],
       targets: { proteinG: 150 },
@@ -86,7 +86,7 @@ describe('computeDayMacros (§8)', () => {
 
   it('reduces function without throwing when ingredient facts are missing (L5)', () => {
     const result = computeDayMacros({
-      plannedRecipe: bowl,
+      plannedRecipes: [bowl],
       ingredientsById: new Map(),
       entries: [],
       targets: {},

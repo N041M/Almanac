@@ -42,7 +42,7 @@ function TaskRow({ item }: { item: Task }) {
   const calendar = useCalendars((s) => s.calendarOf)(item.calendarId);
 
   return (
-    <li className="flex items-start gap-3 px-2 py-2">
+    <li className="group flex items-start gap-3 px-2 py-2">
       <input
         type="checkbox"
         checked={done}
@@ -67,12 +67,12 @@ function TaskRow({ item }: { item: Task }) {
           )}
           {item.title}
           {item.priority !== undefined && (
-            <span className="rounded border border-line px-1 text-[10px] text-ink-muted">
+            <span className="border border-line px-1 text-[10px] text-ink-muted">
               {t(`priority${item.priority}`)}
             </span>
           )}
           {chips.map((chip) => (
-            <span key={chip} className="rounded px-1.5 py-0.5 text-xs" style={tagStyle(chip)}>
+            <span key={chip} className="px-1.5 py-0.5 text-xs" style={tagStyle(chip)}>
               {chip}
             </span>
           ))}
@@ -92,7 +92,7 @@ function TaskRow({ item }: { item: Task }) {
           aria-label={t('moveToList', { title: item.title })}
           value={listOf(item.listId).id}
           onChange={(e) => void moveToList(item.id, e.target.value)}
-          className="max-w-28 rounded-lg border border-line bg-surface-raised px-1.5 py-0.5 text-xs text-ink-muted focus-visible:outline-2 focus-visible:outline-accent"
+          className="max-w-28 border border-line bg-surface-raised px-1.5 py-0.5 text-xs text-ink-muted focus-visible:outline-2 focus-visible:outline-accent"
         >
           {lists.map((list) => (
             <option key={list.id} value={list.id}>
@@ -101,9 +101,14 @@ function TaskRow({ item }: { item: Task }) {
           ))}
         </select>
       )}
-      <Button variant="ghost" onClick={() => void removeItem(item.id)}>
-        {t('remove')}
-      </Button>
+      <button
+        type="button"
+        aria-label={t('remove')}
+        onClick={() => void removeItem(item.id)}
+        className="shrink-0 px-1.5 text-ink-muted opacity-0 transition hover:text-ink group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+      >
+        ✕
+      </button>
     </li>
   );
 }
@@ -165,7 +170,7 @@ export function TasksView() {
             aria-current={activeList === list.id ? 'true' : undefined}
             onClick={() => setActiveList(list.id)}
             className={[
-              'rounded px-2 py-1 transition-colors',
+              'px-2 py-1 transition-colors',
               'focus-visible:outline-2 focus-visible:outline-accent',
               activeList === list.id
                 ? 'font-medium text-accent underline decoration-2 underline-offset-4'
@@ -196,13 +201,13 @@ export function TasksView() {
             placeholder={t('newList')}
             value={newList}
             onChange={(e) => setNewList(e.target.value)}
-            className="w-32 rounded-lg border border-line bg-surface-raised px-2 py-1 text-xs text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-accent"
+            className="w-32 border border-line bg-surface-raised px-2 py-1 text-xs text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-accent"
           />
         </form>
       </nav>
       <TaskComposer {...(activeList !== 'all' && { listId: activeList })} />
 
-      <section className="rounded-2xl border border-line bg-surface-raised p-2 shadow-sm">
+      <section className="border border-line bg-surface-raised p-2 shadow-sm">
         {open.length === 0 ? (
           <p className="px-2 py-4 text-sm text-ink-muted">{t('noTasksYet')}</p>
         ) : (
@@ -215,7 +220,7 @@ export function TasksView() {
       </section>
 
       {done.length > 0 && (
-        <section className="rounded-2xl border border-line bg-surface-raised p-2 shadow-sm">
+        <section className="border border-line bg-surface-raised p-2 shadow-sm">
           <h3 className="px-2 pt-2 text-xs font-medium uppercase tracking-wide text-ink-muted">
             {t('completed')}
           </h3>

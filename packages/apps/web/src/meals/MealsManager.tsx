@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { WEIGHT_PRESETS } from '@almanac/meals';
 import { presetOf, useMeals, type WeightPreset } from '../state/meals';
 import { Button } from '../ui/Button';
+import { slotLabel } from '../state/meal-slot-label';
 import { MealIngredientsEditor } from './MealIngredientsEditor';
 
 const PRESET_KEYS: Record<WeightPreset, string> = {
@@ -46,6 +47,7 @@ export function MealsManager() {
   const addMeal = useMeals((s) => s.addMeal);
   const removeMeal = useMeals((s) => s.removeMeal);
   const updateItem = useMeals((s) => s.updateItem);
+  const slots = useMeals((s) => s.slots);
 
   const [name, setName] = useState('');
   const [tags, setTags] = useState('');
@@ -135,6 +137,40 @@ export function MealsManager() {
                     {t('remove')}
                   </Button>
                 </div>
+                {/* Which meal slots this recipe suits — none selected = any (L5). */}
+                {slots.length > 1 && (
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
+                    <span>{t('eligibleSlots')}:</span>
+                    {slots.map((slot) => {
+                      const chosen = item.slots ?? [];
+                      const on = chosen.includes(slot.id);
+                      return (
+                        <button
+                          key={slot.id}
+                          type="button"
+                          aria-pressed={on}
+                          onClick={() =>
+                            void updateItem(item.recipeId, {
+                              slots: on
+                                ? chosen.filter((s) => s !== slot.id)
+                                : [...chosen, slot.id],
+                            })
+                          }
+                          className={[
+                            'border px-1.5 py-0.5 transition-colors',
+                            'focus-visible:outline-2 focus-visible:outline-accent',
+                            on
+                              ? 'border-accent bg-accent text-accent-ink'
+                              : 'border-line hover:bg-accent-soft/60',
+                          ].join(' ')}
+                        >
+                          {slotLabel(slot, t)}
+                        </button>
+                      );
+                    })}
+                    {(item.slots ?? []).length === 0 && <span>{t('anySlot')}</span>}
+                  </div>
+                )}
                 {open && <MealIngredientsEditor recipeId={item.recipeId} />}
               </li>
             );

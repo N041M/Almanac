@@ -5,6 +5,7 @@ import { DAY_MARK_NAMESPACE, type DayMark } from '../state/day-mark';
 import { AGENDA_DAYS, useCalendar } from '../state/store';
 import { useMeals } from '../state/meals';
 import { useTasks } from '../state/tasks';
+import { representativeRecipeId } from '../state/meals-day';
 
 /**
  * The flat upcoming list (5.4): every day in the window with any module
@@ -35,10 +36,11 @@ export function AgendaView({ start }: { start: ISODate }) {
       const day = days[date];
       const meal = day === undefined ? undefined : getSlice<MealsDaySlice>(day, MEALS_NAMESPACE);
       const starred = day === undefined ? false : getSlice<DayMark>(day, DAY_MARK_NAMESPACE)?.starred === true;
+      const mealRecipeId = representativeRecipeId(meal);
       const mealName =
-        meal?.recipeId == null
+        mealRecipeId == null
           ? undefined
-          : (recipes[meal.recipeId]?.name ?? t('meals:removedMeal'));
+          : (recipes[mealRecipeId]?.name ?? t('meals:removedMeal'));
       const tasks = (taskMap.get(date) ?? [])
         .filter((o) => !(o.item.kind === 'task' && o.item.doneAt !== null))
         .map((o) => o.changes?.title ?? o.item.title);

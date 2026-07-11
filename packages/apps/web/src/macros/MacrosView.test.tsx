@@ -22,7 +22,7 @@ beforeEach(async () => {
     date: today(),
     targets: {},
     slice: { entries: [], plannedServings: 1 },
-    plannedRecipe: null,
+    plannedRecipes: [],
     ingredients: {},
   });
 });

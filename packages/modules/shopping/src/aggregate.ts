@@ -18,11 +18,29 @@ export interface ShoppingLookups {
  */
 const MEALS_NAMESPACE = 'meals';
 
-function plannedRecipeId(day: Day): string | null {
+/**
+ * Every recipe planned on a day, across all meal slots. Reads the shared slice
+ * shape `{ slots: { [id]: { recipeId } } }` defensively (any deviation yields
+ * fewer ids, never a throw — L5). A legacy `{ recipeId }` slice is still read.
+ */
+function plannedRecipeIds(day: Day): string[] {
   const slice = getSlice<unknown>(day, MEALS_NAMESPACE);
-  if (typeof slice !== 'object' || slice === null) return null;
-  const id = (slice as Record<string, unknown>)['recipeId'];
-  return typeof id === 'string' ? id : null;
+  if (typeof slice !== 'object' || slice === null) return [];
+  const record = slice as Record<string, unknown>;
+
+  const slots = record['slots'];
+  if (typeof slots === 'object' && slots !== null) {
+    const ids: string[] = [];
+    for (const cell of Object.values(slots as Record<string, unknown>)) {
+      if (typeof cell !== 'object' || cell === null) continue;
+      const id = (cell as Record<string, unknown>)['recipeId'];
+      if (typeof id === 'string') ids.push(id);
+    }
+    return ids;
+  }
+  // Legacy single-meal shape.
+  const id = record['recipeId'];
+  return typeof id === 'string' ? [id] : [];
 }
 
 interface Accumulator {
@@ -58,17 +76,16 @@ export function aggregateWindow(
   const seenMissing = new Set<string>();
 
   for (const day of days) {
-    const recipeId = plannedRecipeId(day);
-    if (recipeId === null) continue;
-    const recipe = lookups.recipesById.get(recipeId);
-    if (recipe === undefined) {
-      if (!seenMissing.has(recipeId)) {
-        seenMissing.add(recipeId);
-        missingRecipes.push(recipeId);
+    for (const recipeId of plannedRecipeIds(day)) {
+      const recipe = lookups.recipesById.get(recipeId);
+      if (recipe === undefined) {
+        if (!seenMissing.has(recipeId)) {
+          seenMissing.add(recipeId);
+          missingRecipes.push(recipeId);
+        }
+        continue;
       }
-      continue;
-    }
-    for (const { ingredientId, quantity } of recipe.ingredients) {
+      for (const { ingredientId, quantity } of recipe.ingredients) {
       const ingredient = lookups.ingredientsById.get(ingredientId);
       let entry = acc.get(ingredientId);
       if (entry === undefined) {
@@ -84,6 +101,7 @@ export function aggregateWindow(
         entry.quantities = addQuantity(entry.quantities, quantity);
       } else {
         entry.flagged = true;
+      }
       }
     }
   }

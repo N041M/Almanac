@@ -79,7 +79,7 @@ export function MacrosView() {
   const setDate = useMacros((s) => s.setDate);
   const targets = useMacros((s) => s.targets);
   const slice = useMacros((s) => s.slice);
-  const plannedRecipe = useMacros((s) => s.plannedRecipe);
+  const plannedRecipes = useMacros((s) => s.plannedRecipes);
   const setTarget = useMacros((s) => s.setTarget);
   const setPlannedServings = useMacros((s) => s.setPlannedServings);
   const addEntry = useMacros((s) => s.addEntry);
@@ -90,13 +90,13 @@ export function MacrosView() {
   const macros = useMemo(
     () =>
       computeDayMacros({
-        plannedRecipe,
+        plannedRecipes,
         ingredientsById: new Map(Object.entries(ingredients)),
         entries: slice.entries,
         plannedServings: slice.plannedServings,
         targets,
       }),
-    [plannedRecipe, ingredients, slice, targets],
+    [plannedRecipes, ingredients, slice, targets],
   );
   const [label, setLabel] = useState('');
   const [amounts, setAmounts] = useState<Record<MacroField, string>>({
@@ -185,10 +185,10 @@ export function MacrosView() {
 
       {/* Sources: the planned meal (auto) + manual entries. */}
       <section className="rounded-2xl border border-line bg-surface-raised p-4 shadow-sm">
-        {plannedRecipe !== null && (
+        {plannedRecipes.length > 0 && (
           <div className="mb-3 flex items-center gap-3 text-sm">
             <span className="text-ink-muted">{t('fromPlan')}:</span>
-            <span className="font-medium">{plannedRecipe.name}</span>
+            <span className="font-medium">{plannedRecipes.map((r) => r.name).join(' · ')}</span>
             <label className="ml-auto flex items-center gap-2 text-xs text-ink-muted">
               {t('plannedServings')}
               <input
@@ -204,7 +204,7 @@ export function MacrosView() {
           </div>
         )}
 
-        {slice.entries.length === 0 && plannedRecipe === null && (
+        {slice.entries.length === 0 && plannedRecipes.length === 0 && (
           <p className="mb-3 text-sm text-ink-muted">{t('noData')}</p>
         )}
 

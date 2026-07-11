@@ -48,14 +48,32 @@ describe('createMealsStore', () => {
     const { store } = setup();
     const empty = await store.readWeek(MONDAY);
     expect(empty).toHaveLength(7);
-    expect(empty[0]).toMatchObject({ date: MONDAY, dayName: 'monday', recipeId: null });
+    expect(empty[0]).toMatchObject({ date: MONDAY, dayName: 'monday' });
+    expect(empty[0]?.slots).toEqual({});
 
     const plan: WeekPlan = empty.map((entry, i) =>
-      i === 0 ? { ...entry, recipeId: 'goulash', locked: true } : entry,
+      i === 0
+        ? { ...entry, slots: { dinner: { recipeId: 'goulash', locked: true, breakdown: null } } }
+        : entry,
     );
     await store.writeWeek(plan);
     const read = await store.readWeek(MONDAY);
-    expect(read[0]).toMatchObject({ recipeId: 'goulash', locked: true });
-    expect(read[1]?.recipeId).toBeNull();
+    expect(read[0]?.slots['dinner']).toEqual({
+      recipeId: 'goulash',
+      locked: true,
+      breakdown: null,
+    });
+    expect(read[1]?.slots).toEqual({});
+  });
+
+  it('meal slots default to breakfast/lunch/dinner and round-trip', async () => {
+    const { store } = setup();
+    expect((await store.getSlots()).map((s) => s.id)).toEqual(['breakfast', 'lunch', 'dinner']);
+
+    await store.saveSlots([
+      { id: 'brunch', name: 'Brunch' },
+      { id: 'dinner', name: 'Dinner' },
+    ]);
+    expect((await store.getSlots()).map((s) => s.id)).toEqual(['brunch', 'dinner']);
   });
 });

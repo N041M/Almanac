@@ -26,14 +26,14 @@ export function MealBreakdown() {
   const { t } = useTranslation('meals');
   const plan = useMeals((s) => s.plan);
   const recipes = useMeals((s) => s.recipes);
-  const index = useMeals((s) => s.breakdownIndex);
+  const cellRef = useMeals((s) => s.breakdownCell);
 
-  const entry = index === null ? undefined : plan[index];
-  if (entry?.breakdown == null || entry.recipeId === null) {
+  const cell = cellRef === null ? undefined : plan[cellRef.dayIndex]?.slots[cellRef.slotId];
+  if (cell?.breakdown == null || cell.recipeId === null) {
     return <p className="text-sm text-ink-muted">{t('pickBreakdownHint')}</p>;
   }
-  const b = entry.breakdown;
-  const name = recipes[entry.recipeId]?.name ?? t('removedMeal');
+  const b = cell.breakdown;
+  const name = recipes[cell.recipeId]?.name ?? t('removedMeal');
   const percent = (p: number) => `${(p * 100).toFixed(0)} %`;
 
   return (
