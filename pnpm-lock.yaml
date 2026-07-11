@@ -53,6 +53,9 @@ importers:
       '@almanac/core':
         specifier: workspace:*
         version: link:../../core
+      '@almanac/cycle':
+        specifier: workspace:*
+        version: link:../../modules/cycle
       '@almanac/food':
         specifier: workspace:*
         version: link:../../kernels/food
@@ -142,6 +145,12 @@ importers:
         version: link:../../core
 
   packages/modules/checkin:
+    dependencies:
+      '@almanac/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/modules/cycle:
     dependencies:
       '@almanac/core':
         specifier: workspace:*

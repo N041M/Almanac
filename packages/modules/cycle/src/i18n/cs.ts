@@ -1,0 +1,28 @@
+import type { Messages } from '@almanac/core';
+
+export const cs: Messages = {
+  title: 'Cyklus',
+  flow: 'Menstruace',
+  flow_light: 'Slabá',
+  flow_medium: 'Střední',
+  flow_heavy: 'Silná',
+  setFlow: 'Nastavit intenzitu: {{level}}',
+  clearFlow: 'Zrušit záznam',
+  ovulationTest: 'LH test',
+  test_positive: 'Pozitivní',
+  test_negative: 'Negativní',
+  setTest: 'Zaznamenat ovulační test: {{result}}',
+  clearTest: 'Zrušit ovulační test',
+  avgCycle: 'Průměrný cyklus {{days}} dní',
+  dayOfCycle: '{{day}}. den',
+  fertileWindow: 'Plodné okno',
+  nextPeriod: 'Další menstruace kolem {{date}}',
+  nextPeriodBetween: 'Další menstruace mezi {{from}} a {{to}}',
+  irregularNote: 'Poslední cykly se příliš liší na odhad — historie a záznamy pokračují.',
+  phase_menstrual: 'Menstruační fáze',
+  phase_follicular: 'Folikulární fáze',
+  phase_ovulation: 'Kolem ovulace',
+  phase_luteal: 'Luteální fáze',
+  informational: 'Osobní odhad, pouze informativní.',
+  predictionSetting: 'Předpovědi cyklu',
+};

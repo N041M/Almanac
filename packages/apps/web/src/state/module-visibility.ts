@@ -5,7 +5,14 @@ import { useSettings } from './settings';
  * nav and the calendar's contributions — the module's data and slices stay
  * untouched underneath, exactly the "module absent" degradation row (L5).
  */
-export const TOGGLEABLE_MODULES = ['tasks', 'meals', 'shopping', 'macros', 'checkin'] as const;
+export const TOGGLEABLE_MODULES = [
+  'tasks',
+  'meals',
+  'shopping',
+  'macros',
+  'checkin',
+  'cycle',
+] as const;
 export type ToggleableModuleId = (typeof TOGGLEABLE_MODULES)[number];
 
 /** True unless the user hid the module in settings. */

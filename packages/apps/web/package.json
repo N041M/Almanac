@@ -12,6 +12,7 @@
     "@almanac/calendar-interop": "workspace:*",
     "@almanac/checkin": "workspace:*",
     "@almanac/core": "workspace:*",
+    "@almanac/cycle": "workspace:*",
     "@almanac/food": "workspace:*",
     "@almanac/macros": "workspace:*",
     "@almanac/meals": "workspace:*",

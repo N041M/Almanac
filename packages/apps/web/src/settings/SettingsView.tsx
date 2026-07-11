@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { bcp47, MS_PER_DAY, type Weekday } from '@almanac/core';
 import { useCalendar } from '../state/store';
 import { useSettings } from '../state/settings';
-import { TOGGLEABLE_MODULES } from '../state/module-visibility';
+import { TOGGLEABLE_MODULES, useModuleVisible } from '../state/module-visibility';
+import { useCycle } from '../state/cycle';
 import { syncReminders, useTasks } from '../state/tasks';
 import { Button } from '../ui/Button';
 import { CalendarsManager } from './CalendarsManager';
@@ -35,6 +36,9 @@ export function SettingsView() {
   const importVault = useSettings((s) => s.importVault);
   const hiddenModules = useSettings((s) => s.hiddenModules);
   const setModuleHidden = useSettings((s) => s.setModuleHidden);
+  const cycleVisible = useModuleVisible('cycle');
+  const predictionEnabled = useCycle((s) => s.predictionEnabled);
+  const setPredictionEnabled = useCycle((s) => s.setPredictionEnabled);
 
   const fileInput = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
@@ -115,6 +119,18 @@ export function SettingsView() {
             className="accent-accent"
           />
         </label>
+        {cycleVisible && (
+          <label className="flex items-center justify-between gap-3 text-sm">
+            {t('cycle:predictionSetting')}
+            <input
+              type="checkbox"
+              aria-label={t('cycle:predictionSetting')}
+              checked={predictionEnabled}
+              onChange={(e) => void setPredictionEnabled(e.target.checked)}
+              className="accent-accent"
+            />
+          </label>
+        )}
         {remindersEnabled && (
           <label className="flex items-center justify-between gap-3 text-sm">
             {t('reminderOffset')}
