@@ -14,6 +14,12 @@ export interface PlanItem {
   enabled: boolean;
   /** Committed history only — the visible plan is never folded back in (§6.5). */
   lastServed: ISODate | null;
+  /**
+   * Eligible meal-slot ids (e.g. `['breakfast']`). Empty/absent ⇒ any slot —
+   * the slot-type gate only bites for recipes that opt in, and relaxes to "any"
+   * when a slot would otherwise go empty (L5). A §6 additive extension.
+   */
+  slots?: string[];
 }
 
 export interface Settings {
@@ -39,15 +45,29 @@ export interface SelectionBreakdown {
   alternatives: { id: string; name: string; p: number }[];
 }
 
-export interface PlanEntry {
-  /** Weekday key ("monday" … "sunday") — views translate it (L7). */
-  dayName: string;
-  date: ISODate;
-  /** null = an empty slot (the ladder's last rung, §6.5) — a normal state. */
+/**
+ * One meal-slot's selection on a day. `recipeId: null` = an empty slot (the
+ * ladder's last rung, §6.5) — a normal state. Lock and "why this pick" are
+ * per-slot now that a day holds several meals.
+ */
+export interface SlotEntry {
   recipeId: string | null;
   locked: boolean;
   breakdown: SelectionBreakdown | null;
 }
 
+export interface PlanEntry {
+  /** Weekday key ("monday" … "sunday") — views translate it (L7). */
+  dayName: string;
+  date: ISODate;
+  /** One entry per configured meal slot, keyed by slot id. */
+  slots: Record<string, SlotEntry>;
+}
+
 /** Length 7, `Settings.weekStart` .. +6. */
 export type WeekPlan = PlanEntry[];
+
+/** An empty slot — the default and the ladder's last rung (§6.5). */
+export function emptySlotEntry(): SlotEntry {
+  return { recipeId: null, locked: false, breakdown: null };
+}

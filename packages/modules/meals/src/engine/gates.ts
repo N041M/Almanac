@@ -8,11 +8,18 @@ import type { PlanItem, Settings } from './types.js';
  * `enabled` is never relaxed: a disabled meal stays out.
  */
 export interface GateFlags {
+  /** Restrict a recipe to its eligible meal slots (§6 extension). */
+  slotType: boolean;
   cooldown: boolean;
   weekRepeat: boolean;
 }
 
-export const ALL_GATES: GateFlags = { cooldown: true, weekRepeat: true };
+export const ALL_GATES: GateFlags = { slotType: true, cooldown: true, weekRepeat: true };
+
+/** A recipe is eligible for a slot when it declares no slots, or lists this one. */
+export function eligibleForSlot(item: PlanItem, slotId: string): boolean {
+  return item.slots === undefined || item.slots.length === 0 || item.slots.includes(slotId);
+}
 
 /** Absolute day distance from the working date, or `null` if never served/placed. */
 export function daysSince(
@@ -24,16 +31,19 @@ export function daysSince(
   return last === undefined ? null : Math.abs(diffDays(last, slotDate));
 }
 
-/** Hard exclusion (§6.3): enabled → cooldown → week-repeat. */
+/** Hard exclusion (§6.3): enabled → slot-type → cooldown → week-repeat. */
 export function passesGates(
   item: PlanItem,
   slotDate: ISODate,
+  slotId: string,
   working: ReadonlyMap<string, ISODate>,
   usedThisWeek: ReadonlySet<string>,
   settings: Settings,
   flags: GateFlags,
 ): boolean {
   if (!item.enabled) return false;
+
+  if (flags.slotType && !eligibleForSlot(item, slotId)) return false;
 
   if (flags.cooldown) {
     const d = daysSince(item, slotDate, working);

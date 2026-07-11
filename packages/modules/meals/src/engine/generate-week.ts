@@ -1,7 +1,8 @@
 import type { ISODate, Rng } from '@almanac/core';
 import { addDays, weekdayOf } from '@almanac/core';
 import type { Recipe } from '@almanac/food';
-import type { PlanEntry, PlanItem, Settings, WeekPlan } from './types.js';
+import type { PlanEntry, PlanItem, Settings, SlotEntry, WeekPlan } from './types.js';
+import { emptySlotEntry } from './types.js';
 import { selectSlot } from './select-slot.js';
 
 /** Weekday keys by `weekdayOf` index (0 = Sunday) — views translate (L7). */
@@ -19,29 +20,29 @@ export function dayNameOf(date: ISODate): string {
   return DAY_NAMES[weekdayOf(date)];
 }
 
-/** Tags of the entry's recipe; empty for null slots or a missing recipe (L5). */
-function tagsOf(
-  entry: PlanEntry | undefined,
-  recipes: ReadonlyMap<string, Recipe>,
-): ReadonlySet<string> {
-  if (entry?.recipeId == null) return new Set();
-  return new Set(recipes.get(entry.recipeId)?.tags ?? []);
+/** Tags of a recipe id; empty for null/missing (L5). */
+function tagsOf(recipeId: string | null, recipes: ReadonlyMap<string, Recipe>): ReadonlySet<string> {
+  if (recipeId === null) return new Set();
+  return new Set(recipes.get(recipeId)?.tags ?? []);
 }
 
 /**
- * §6.5 `generateWeek`. History = `lastServed` only — the visible plan is never
- * folded back in, so re-generating never penalises itself. Pass 1 places
- * locked days (kept verbatim from `prevPlan` by date); pass 2 fills the rest
- * Mon→Sun through gates → scorers → draw, relaxing per the ladder. Never
- * throws; an unfillable slot is `recipeId: null`.
+ * §6.5 `generateWeek`, generalized from one meal per day to one per **cell**
+ * (day × meal slot). The algorithm is unchanged — gates → scorers → draw per
+ * cell — only the loop is now day-major over `slotIds`, sharing cooldown/used/
+ * tag history across every cell. History = committed `lastServed` only (the
+ * visible plan is never folded back in). Pass 1 keeps locked cells verbatim;
+ * pass 2 fills the rest, relaxing per the ladder. Never throws; an unfillable
+ * cell stays `recipeId: null`.
  *
- * `recipes` carries the food attributes (§6 note: the engine reads tags from
- * the linked recipe); a missing recipe degrades to no tags, never a crash.
+ * `avoidSameTag` now compares each cell against the **previous cell in order**
+ * (within a day: the prior meal; across days: the last meal of the day before).
  */
 export function generateWeek(
   items: ReadonlyArray<PlanItem>,
   recipes: ReadonlyMap<string, Recipe>,
   settings: Settings,
+  slotIds: ReadonlyArray<string>,
   prevPlan: WeekPlan,
   rng: Rng,
 ): WeekPlan {
@@ -51,47 +52,64 @@ export function generateWeek(
     if (item.lastServed !== null) working.set(item.recipeId, item.lastServed);
   }
   const used = new Set<string>();
-  const plan: (PlanEntry | undefined)[] = new Array<PlanEntry | undefined>(7);
-
-  // Pass 1 — locked days stand exactly as they are, and count as placed.
   const prevByDate = new Map(prevPlan.map((entry) => [entry.date, entry]));
-  dates.forEach((date, i) => {
+
+  const plan: PlanEntry[] = dates.map((date) => ({
+    dayName: dayNameOf(date),
+    date,
+    slots: {},
+  }));
+
+  // Pass 1 — locked cells stand exactly as they are, and count as placed.
+  dates.forEach((date, di) => {
     const prev = prevByDate.get(date);
-    if (prev === undefined || !prev.locked) return;
-    plan[i] = { ...prev, dayName: dayNameOf(date) };
-    if (prev.recipeId !== null) {
-      working.set(prev.recipeId, date);
-      used.add(prev.recipeId);
+    const entry = plan[di];
+    if (entry === undefined || prev === undefined) return;
+    for (const slotId of slotIds) {
+      const cell = prev.slots[slotId];
+      if (cell?.locked !== true) continue;
+      entry.slots[slotId] = { ...cell };
+      if (cell.recipeId !== null) {
+        working.set(cell.recipeId, date);
+        used.add(cell.recipeId);
+      }
     }
   });
 
-  // Pass 2 — fill the open days in order; yesterday's tags come from the plan
-  // as it stands (locked or drawn alike).
-  dates.forEach((date, i) => {
-    if (plan[i] !== undefined) return;
-    const previousDayTags = tagsOf(plan[i - 1], recipes);
-    const selected = selectSlot(
-      items,
-      recipes,
-      date,
-      working,
-      used,
-      previousDayTags,
-      settings,
-      rng,
-    );
-    if (selected !== null) {
-      working.set(selected.recipeId, date);
-      used.add(selected.recipeId);
+  // Pass 2 — fill the open cells in order; `previousTags` follows the sequence.
+  let previousTags: ReadonlySet<string> = new Set();
+  dates.forEach((date, di) => {
+    const entry = plan[di];
+    if (entry === undefined) return;
+    for (const slotId of slotIds) {
+      const existing = entry.slots[slotId];
+      if (existing !== undefined) {
+        previousTags = tagsOf(existing.recipeId, recipes);
+        continue;
+      }
+      const selected = selectSlot(
+        items,
+        recipes,
+        date,
+        slotId,
+        working,
+        used,
+        previousTags,
+        settings,
+        rng,
+      );
+      if (selected !== null) {
+        working.set(selected.recipeId, date);
+        used.add(selected.recipeId);
+      }
+      const cell: SlotEntry =
+        selected === null
+          ? emptySlotEntry()
+          : { recipeId: selected.recipeId, locked: false, breakdown: selected.breakdown };
+      entry.slots[slotId] = cell;
+      previousTags = tagsOf(cell.recipeId, recipes);
     }
-    plan[i] = {
-      dayName: dayNameOf(date),
-      date,
-      recipeId: selected?.recipeId ?? null,
-      locked: false,
-      breakdown: selected?.breakdown ?? null,
-    };
   });
 
-  return plan as WeekPlan;
+  return plan;
 }

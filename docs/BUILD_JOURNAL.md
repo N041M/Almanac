@@ -7,7 +7,79 @@ deferred, and anything we're unsure about.
 
 ---
 
-## Phase 2 — Desktop calendar shell (in progress)
+## Phase 9 — Life modules (in progress, 2026-07-07 → )
+
+**Goal:** the §8 life modules, each proving again that a module is a day slice
+plus pure logic plus a section the shell composes — no module ever importing
+another.
+
+**Built so far:** **check-in** (mood/energy/symptoms/note — deliberately first,
+because cycle and insights read its fields as shared day data by namespace);
+**cycle** (flow + LH-test day slice; periods/stats/prediction all derive on
+read — median of recent cycles, an irregularity gate that suppresses claims
+instead of guessing, luteal back-counting, fertile window, and measured-
+ovulation anchoring that outranks the calendar math; everything labelled a
+personal, informational estimate); **body** (kg + body-fat entries, the
+classic exponentially smoothed trend, weekly rate from the trend only).
+
+**Also:** a **per-module show/hide setting** (a view filter over tabs, chips,
+panels, palette and search — the L5 "module absent" posture made
+user-controllable), and the calendar surfaces fixed to show **every** planned
+meal slot (a leftover of the single-meal era). Roadmap grew a planner
+(timeboxing) module, time-allocation insights, and P12 booking/focus rules
+from a features gap analysis; chat/DND integration was explicitly parked as a
+far-future opt-in module. **Remaining:** workouts, weather, insights,
+birthdays, planner, the secondary-TZ leftover.
+
+## Phases 6–8 — Tasks; Macros + Shopping; Interop & findability (2026-07-04 → 07-07)
+
+**Tasks (P6)** pinned two contracts *before* the first event persisted —
+tombstoned deletion (D6) and the P12-ready event shape (D7: `calendarId`,
+transparency, visibility) — the "migrations are the tax for deciding late"
+lesson applied. Then: NL quick entry (EN + CS, sigils; unparseable text still
+creates an item), recurrence v2 in anger (overrides, series split), multiple
+calendars, reminders over the new `NotificationPort`, and the ⌘K palette.
+
+**Macros + Shopping (P7)** were the star-modularity proof: both ride the food
+kernel and read the planned meals off the **shared day record by namespace** —
+neither imports meals. Shopping stayed one pure `aggregateWindow` behind two
+triggers, derived on demand and never stored; §8.1's "multiply by servings"
+was reconciled against the kernel's whole-recipe quantities (multiplying would
+have double-counted).
+
+**Interop (P8)** chose an **own minimal RFC 5545 parser** over ical.js (the
+needed subset maps 1:1 onto core types; a dep added weight and ESM friction).
+ICS import/export with re-import dedup, read-only feed subscriptions on a new
+core `FeedPort` (stale cache beats a blank list), ranked search folded into
+the palette, the year density view, and printing. Post-phase: multiple-
+calendar UI polish, **D8** (several meals a day — the engine's unit
+generalized from day to day×slot cell), and **D9** (unbounded numbered
+priority with a capped fade).
+
+## Phases 3–5 — Food kernel; the §6 engine; calendar core v2 (2026-07-03 → 07-04)
+
+**Food kernel (P3):** ingredients/recipes with whole-recipe quantities,
+`deriveRecipeNutrition`, and the Open Food Facts adapter behind
+`NutritionPort` — cached, and quiet when offline (nutrition is enrichment,
+never a gate).
+
+**Meals (P4):** §6 implemented *exactly* — gates → multiplicative scorers →
+temperature-weighted draw (never argmax) with the degradation ladder — plus
+the seeded statistical suite (§12) guarding anti-clustering and variety. The
+**module-manifest seam** (codecs + i18n registered through core) was defined
+first, so every later module inherited it. The UI shipped lock/re-roll and
+the "why this pick" breakdown from day one; nutrition-from-ingredients came
+right after (OFF matching with canonical names).
+
+**Calendar v2 (P5):** the two early contracts (recurrence v2 additively;
+timed events as `{startUtc, endUtc, zone}` — absolute instant, display
+intent), then the interaction layer: Timeline + Agenda views, drag & drop,
+the undo stack, day-entry copy/paste, the settings surface, vault
+export/import, and the `StoragePort` **contract suite** run against memory,
+localStorage, and the desktop's new SQLite adapter. Rule set then: a port
+gets its contract suite before its next implementation.
+
+## Phase 2 — Desktop calendar shell (completed 2026-07-03)
 
 **Goal:** the calendar rendering Days end-to-end, in the shared renderer that is
 both the web port and the Tauri desktop frontend (decision D2/D3), with EN + CS.

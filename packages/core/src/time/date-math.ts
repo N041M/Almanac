@@ -24,10 +24,6 @@ export function startOfWeek(date: ISODate, weekStartsOn: Weekday): ISODate {
   return addDays(date, -back);
 }
 
-export function endOfWeek(date: ISODate, weekStartsOn: Weekday): ISODate {
-  return addDays(startOfWeek(date, weekStartsOn), 6);
-}
-
 /** Days in a given calendar month (month is 1–12). */
 export function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();

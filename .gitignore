@@ -11,6 +11,12 @@ coverage/
 .turbo/
 *.tsbuildinfo
 
+# Local working notes (not repo canon)
+docs/UX_VISION.md
+
 # Rust / Tauri
 target/
 packages/apps/desktop/src-tauri/gen/
+
+# Working context for the AI assistant — local, never published
+CLAUDE.md

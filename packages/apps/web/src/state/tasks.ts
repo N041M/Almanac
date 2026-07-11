@@ -1,28 +1,26 @@
 import { create } from 'zustand';
-import type { ISODate } from '@almanac/core';
+import type { ISODate, Priority } from '@almanac/core';
 import {
   createTasksStore,
   occurrencesForRange,
   parseQuickEntry,
   type DayOccurrence,
+  type EventItem,
   type Task,
   type TaskItem,
 } from '@almanac/tasks';
 import { notificationPort } from '../notifications/create-notification-port';
-import { isEntryVisible } from './calendars';
+import { DEFAULT_CALENDAR_ID, isEntryVisible } from './calendars';
 import { useSettings } from './settings';
 import { storagePort } from './persistence';
 import { useCalendar } from './store';
 import { useUndo } from './undo';
+import { viewerZone } from './viewer-zone';
 import { systemClock, today } from '../clock';
 
 // Composition root for the tasks module (L1: the app wires it, modules never
 // see each other). Entity records, D6 tombstones underneath.
 const tasksStore = createTasksStore(storagePort, systemClock);
-
-// The app layer is the sanctioned edge for the viewer's zone (L4) — timed
-// spans resolve their display days against it (5.2 fallback chain).
-const viewerZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 /** Local wall-clock date+minutes → absolute UTC ms (the app is the L4 edge). */
 export function wallClockToUtc(date: ISODate, minutes: number): number {
@@ -34,7 +32,8 @@ export function wallClockToUtc(date: ISODate, minutes: number): number {
 export interface QuickAddOverrides {
   date?: ISODate;
   minutes?: number;
-  priority?: 1 | 2 | 3;
+  /** Any positive integer — the 1/2/3 pills are just presets (D9). */
+  priority?: Priority;
   /** Merged with parsed sigils; `@word` entries become contexts. */
   tags?: string[];
   notes?: string;
@@ -61,6 +60,8 @@ interface TasksState {
   removeItem: (id: string) => Promise<void>;
   /** Move an item to another to-do list (Inbox = clear the field). */
   moveToList: (id: string, listId: string) => Promise<void>;
+  /** Add imported events (ICS, P8) as one undoable batch — tasks owns persistence. */
+  importEvents: (events: ReadonlyArray<EventItem>) => Promise<void>;
   /** Everything in the window, keyed by date — for grids/agenda/day detail. */
   occurrences: (start: ISODate, end: ISODate) => Map<ISODate, DayOccurrence[]>;
 }
@@ -143,13 +144,18 @@ export const useTasks = create<TasksState>((set, get) => {
       const date = picked.date ?? parsed.date;
       const minutes = picked.minutes ?? parsed.minutes;
       const notes = picked.notes?.trim();
+      // New entries default to the settings' default calendar unless a pick
+      // overrides it; the built-in default carries no id (resolves as default).
+      const settingsDefault = useSettings.getState().defaultCalendarId;
+      const calendarId =
+        picked.calendarId ?? (settingsDefault !== DEFAULT_CALENDAR_ID ? settingsDefault : undefined);
       const base = {
         id: crypto.randomUUID(),
         // All tokens consumed (e.g. just "tomorrow")? The raw text is the title.
         title: parsed.title !== '' ? parsed.title : trimmed,
         categories,
         contexts,
-        ...(picked.calendarId !== undefined && { calendarId: picked.calendarId }),
+        ...(calendarId !== undefined && { calendarId }),
         ...(picked.listId !== undefined && { listId: picked.listId }),
         ...(notes !== undefined && notes !== '' && { notes }),
         ...(priority !== undefined && { priority }),
@@ -220,6 +226,38 @@ export const useTasks = create<TasksState>((set, get) => {
         apply: async () => {
           replace(get().items.map((i) => (i.id === id ? item : i)));
           await quietly(() => tasksStore.save(item));
+        },
+      });
+    },
+
+    importEvents: async (events) => {
+      if (events.length === 0) return;
+      // Upsert by id: an imported event carries a stable id derived from its ICS
+      // UID, so re-importing the same file overwrites rather than duplicates.
+      const incoming = new Map(events.map((e) => [e.id, e]));
+      const previous = new Map(
+        get().items.filter((i) => incoming.has(i.id)).map((i) => [i.id, i]),
+      );
+      const merged = get().items.map((item) => incoming.get(item.id) ?? item);
+      for (const event of events) if (!previous.has(event.id)) merged.push(event);
+      replace(merged);
+      for (const event of events) await quietly(() => tasksStore.save(event));
+      useUndo.getState().push({
+        labelKey: 'interop:importIcs',
+        apply: async () => {
+          // Undo restores each imported id to its pre-import state: a prior
+          // version is revived, a brand-new one is dropped; others untouched.
+          replace(
+            get()
+              .items.map((item) => (incoming.has(item.id) ? previous.get(item.id) : item))
+              .filter((item): item is TaskItem => item !== undefined),
+          );
+          for (const id of incoming.keys()) {
+            const prior = previous.get(id);
+            await quietly(() =>
+              prior !== undefined ? tasksStore.save(prior) : tasksStore.remove(id),
+            );
+          }
         },
       });
     },

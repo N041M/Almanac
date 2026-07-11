@@ -35,7 +35,7 @@ beforeEach(async () => {
     items: [],
     settings: null,
     plan: [],
-    breakdownIndex: null,
+    breakdownCell: null,
     nutritionChoices: {},
     nutritionPick: {},
     dayMeals: {},
@@ -205,6 +205,9 @@ describe('P6 — events from the composer', () => {
 describe('P6 — reminders ride the notification port', () => {
   it('an enabled reminder fires a Notification at due − offset; done cancels', () => {
     vi.useFakeTimers();
+    // Pin the clock to midday so "an hour from now" stays on `today()` — the
+    // due date and minutes must not straddle midnight (flaked near 23:00 UTC).
+    vi.setSystemTime(new Date(2026, 6, 6, 9, 0, 0));
     const shown: string[] = [];
     class FakeNotification {
       static permission = 'granted';

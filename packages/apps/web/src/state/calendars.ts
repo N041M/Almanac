@@ -24,6 +24,21 @@ const DEFAULT_CALENDAR: UserCalendar = {
   visible: true,
 };
 
+/**
+ * A named swatch palette (Apple-style) — one accent hue each, rendered
+ * theme-safely as `hsl(hue 65% 50%)`. Keys resolve to localized colour names.
+ */
+export const CALENDAR_COLORS: ReadonlyArray<{ key: string; hue: number }> = [
+  { key: 'colorRed', hue: 5 },
+  { key: 'colorOrange', hue: 35 },
+  { key: 'colorYellow', hue: 55 },
+  { key: 'colorGreen', hue: 140 },
+  { key: 'colorTeal', hue: 180 },
+  { key: 'colorBlue', hue: 220 },
+  { key: 'colorPurple', hue: 285 },
+  { key: 'colorPink', hue: 330 },
+];
+
 const persisted = createPersistedList<UserCalendar>({
   key: 'calendars:list',
   version: 1,
@@ -42,7 +57,11 @@ interface CalendarsState {
 
   load: () => Promise<void>;
   add: (name: string, hue: number) => Promise<void>;
+  rename: (id: string, name: string) => Promise<void>;
+  recolor: (id: string, hue: number) => Promise<void>;
   toggleVisible: (id: string) => Promise<void>;
+  /** Show or hide every calendar at once (the popover's Show/Hide all). */
+  setAllVisible: (visible: boolean) => Promise<void>;
   /** Entries keep their calendarId; they degrade to the default calendar. */
   remove: (id: string) => Promise<void>;
   /** Resolve an entry's calendar: unknown/hidden-aware helper. */
@@ -52,10 +71,13 @@ interface CalendarsState {
 }
 
 export const useCalendars = create<CalendarsState>((set, get) => {
-  async function persist(calendars: UserCalendar[]): Promise<void> {
+  // `reload` re-reads the visible day range — needed when a change affects what
+  // the grid shows (visibility, add/remove), skipped for cosmetic edits
+  // (rename/recolor) so typing a name doesn't thrash the calendar.
+  async function persist(calendars: UserCalendar[], reload = true): Promise<void> {
     set({ calendars });
     await persisted.write(calendars);
-    void useCalendar.getState().invalidateDays();
+    if (reload) void useCalendar.getState().invalidateDays();
   }
 
   return {
@@ -77,8 +99,22 @@ export const useCalendars = create<CalendarsState>((set, get) => {
         { id: crypto.randomUUID(), name: name.trim(), hue, visible: true },
       ]),
 
+    rename: (id, name) =>
+      persist(
+        get().calendars.map((c) => (c.id === id ? { ...c, name: name.trim() } : c)),
+        false,
+      ),
+
+    recolor: (id, hue) =>
+      persist(
+        get().calendars.map((c) => (c.id === id ? { ...c, hue } : c)),
+        false,
+      ),
+
     toggleVisible: (id) =>
       persist(get().calendars.map((c) => (c.id === id ? { ...c, visible: !c.visible } : c))),
+
+    setAllVisible: (visible) => persist(get().calendars.map((c) => ({ ...c, visible }))),
 
     remove: (id) => {
       if (id === DEFAULT_CALENDAR_ID) return Promise.resolve(); // the fallback stays

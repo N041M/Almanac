@@ -1,15 +1,15 @@
 import type { SliceCodec } from '@almanac/core';
-import type { SelectionBreakdown } from './engine/types.js';
+import type { SelectionBreakdown, SlotEntry } from './engine/types.js';
+import { LEGACY_SLOT_ID } from './slots.js';
 
 /**
- * The meals module's contribution to a Day (§5: `meals.recipeId`) — one
- * planned meal per date. The day-store guarantees a corrupt or unknown-version
- * payload degrades to the default without touching other slices (L5).
+ * The meals module's contribution to a Day (§5): the planned meals, one per
+ * configured slot, keyed by slot id. The day-store guarantees a corrupt or
+ * unknown-version payload degrades to the default without touching other
+ * slices (L5); within a payload, one malformed slot is dropped, not the day.
  */
 export interface MealsDaySlice {
-  recipeId: string | null;
-  locked: boolean;
-  breakdown: SelectionBreakdown | null;
+  slots: Record<string, SlotEntry>;
 }
 
 export const MEALS_NAMESPACE = 'meals';
@@ -41,22 +41,42 @@ function decodeBreakdown(value: unknown): SelectionBreakdown | null {
   return { prob, candidateCount, fFreq, fRec, fTag, daysSince, alternatives: alts };
 }
 
+/** One slot entry, or null when the shape is unusable (dropped, L5). */
+function decodeSlotEntry(value: unknown): SlotEntry | null {
+  if (!isRecord(value)) return null;
+  const recipeId = value['recipeId'];
+  if (recipeId !== null && typeof recipeId !== 'string') return null;
+  return {
+    recipeId,
+    locked: value['locked'] === true,
+    breakdown: decodeBreakdown(value['breakdown']),
+  };
+}
+
 export const mealsDayCodec: SliceCodec<MealsDaySlice> = {
   namespace: MEALS_NAMESPACE,
   version: MEALS_SLICE_VERSION,
-  default: () => ({ recipeId: null, locked: false, breakdown: null }),
+  default: () => ({ slots: {} }),
   decode: (raw) => {
     if (!isRecord(raw)) throw new Error('meals slice: not an object');
-    const recipeId = raw['recipeId'];
-    if (recipeId !== null && typeof recipeId !== 'string') {
-      throw new Error('meals slice: bad recipeId');
+
+    // New shape: a `slots` map (a malformed slot is dropped, not the day).
+    if (isRecord(raw['slots'])) {
+      const slots: Record<string, SlotEntry> = {};
+      for (const [slotId, value] of Object.entries(raw['slots'])) {
+        const entry = decodeSlotEntry(value);
+        if (entry !== null) slots[slotId] = entry;
+      }
+      return { slots };
     }
-    return {
-      recipeId,
-      locked: raw['locked'] === true,
-      // A malformed breakdown costs only itself — the planned meal stands (L5).
-      breakdown: decodeBreakdown(raw['breakdown']),
-    };
+
+    // Legacy single-meal shape → the dinner slot (the day's main meal).
+    if ('recipeId' in raw) {
+      const entry = decodeSlotEntry(raw);
+      return { slots: entry === null ? {} : { [LEGACY_SLOT_ID]: entry } };
+    }
+
+    return { slots: {} };
   },
   encode: (value) => value,
 };

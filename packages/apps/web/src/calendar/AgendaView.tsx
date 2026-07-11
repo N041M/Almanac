@@ -5,6 +5,8 @@ import { DAY_MARK_NAMESPACE, type DayMark } from '../state/day-mark';
 import { AGENDA_DAYS, useCalendar } from '../state/store';
 import { useMeals } from '../state/meals';
 import { useTasks } from '../state/tasks';
+import { dayMealEntries } from '../state/meals-day';
+import { useModuleVisible } from '../state/module-visibility';
 
 /**
  * The flat upcoming list (5.4): every day in the window with any module
@@ -18,6 +20,10 @@ export function AgendaView({ start }: { start: ISODate }) {
   const select = useCalendar((s) => s.select);
   const setView = useCalendar((s) => s.setView);
   const recipes = useMeals((s) => s.recipes);
+  const slots = useMeals((s) => s.slots);
+  // Hidden modules contribute no rows — the same posture as absent (L5).
+  const mealsVisible = useModuleVisible('meals');
+  const tasksVisible = useModuleVisible('tasks');
 
   const dayFormat = new Intl.DateTimeFormat(bcp47(locale), {
     weekday: 'long',
@@ -35,16 +41,19 @@ export function AgendaView({ start }: { start: ISODate }) {
       const day = days[date];
       const meal = day === undefined ? undefined : getSlice<MealsDaySlice>(day, MEALS_NAMESPACE);
       const starred = day === undefined ? false : getSlice<DayMark>(day, DAY_MARK_NAMESPACE)?.starred === true;
-      const mealName =
-        meal?.recipeId == null
-          ? undefined
-          : (recipes[meal.recipeId]?.name ?? t('meals:removedMeal'));
-      const tasks = (taskMap.get(date) ?? [])
-        .filter((o) => !(o.item.kind === 'task' && o.item.doneAt !== null))
-        .map((o) => o.changes?.title ?? o.item.title);
-      return { date, mealName, starred, tasks };
+      const mealNames = !mealsVisible
+        ? []
+        : dayMealEntries(meal, slots.map((slot) => slot.id)).map(
+            ({ recipeId }) => recipes[recipeId]?.name ?? t('meals:removedMeal'),
+          );
+      const tasks = !tasksVisible
+        ? []
+        : (taskMap.get(date) ?? [])
+            .filter((o) => !(o.item.kind === 'task' && o.item.doneAt !== null))
+            .map((o) => o.changes?.title ?? o.item.title);
+      return { date, mealNames, starred, tasks };
     })
-    .filter((row) => row.mealName !== undefined || row.starred || row.tasks.length > 0);
+    .filter((row) => row.mealNames.length > 0 || row.starred || row.tasks.length > 0);
 
   if (rows.length === 0) {
     return <p className="px-2 py-4 text-sm text-ink-muted">{t('agendaEmpty')}</p>;
@@ -52,7 +61,7 @@ export function AgendaView({ start }: { start: ISODate }) {
 
   return (
     <ol className="divide-y divide-line">
-      {rows.map(({ date, mealName, starred, tasks }) => (
+      {rows.map(({ date, mealNames, starred, tasks }) => (
         <li key={date}>
           <button
             type="button"
@@ -71,10 +80,10 @@ export function AgendaView({ start }: { start: ISODate }) {
                   • {title}
                 </span>
               ))}
-              {mealName !== undefined && (
+              {mealNames.length > 0 && (
                 <>
                   <span className="text-ink-muted">{t('meals:plannedMeal')}: </span>
-                  {mealName}
+                  {mealNames.join(', ')}
                 </>
               )}
               {starred && (

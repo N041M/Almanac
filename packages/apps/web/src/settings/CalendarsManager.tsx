@@ -1,55 +1,67 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { DEFAULT_CALENDAR_ID, useCalendars } from '../state/calendars';
+import { CALENDAR_COLORS, DEFAULT_CALENDAR_ID, useCalendars, type UserCalendar } from '../state/calendars';
+import { useSettings } from '../state/settings';
 import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
+import { Input, Select } from '../ui/Input';
+import { ColorPicker } from './ColorPicker';
 
-const HUES = [220, 0, 30, 140, 280, 180];
+const DEFAULT_HUE = CALENDAR_COLORS[5]?.hue ?? 220; // blue
 
-/** Manage calendars (P6): name + color + per-calendar visibility toggle. */
+/** Manage calendars (P6, Apple-inspired): recolour, rename, visibility, default. */
 export function CalendarsManager() {
   const { t } = useTranslation();
   const load = useCalendars((s) => s.load);
+  const loadSettings = useSettings((s) => s.load);
   const calendars = useCalendars((s) => s.calendars);
   const add = useCalendars((s) => s.add);
+  const rename = useCalendars((s) => s.rename);
+  const recolor = useCalendars((s) => s.recolor);
   const toggleVisible = useCalendars((s) => s.toggleVisible);
   const remove = useCalendars((s) => s.remove);
+  const defaultCalendarId = useSettings((s) => s.defaultCalendarId);
+  const setDefaultCalendar = useSettings((s) => s.setDefaultCalendar);
 
   const [name, setName] = useState('');
-  const [hue, setHue] = useState(HUES[1] ?? 0);
+  const [hue, setHue] = useState(DEFAULT_HUE);
 
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadSettings();
+  }, [load, loadSettings]);
+
+  const display = (cal: UserCalendar): string =>
+    cal.id === DEFAULT_CALENDAR_ID && cal.name === '' ? t('defaultCalendarName') : cal.name;
 
   return (
-    <section className="space-y-3 rounded-2xl border border-line bg-surface-raised p-4 shadow-sm">
+    <Card className="space-y-3">
       <h2 className="font-semibold">{t('calendars')}</h2>
+
       <ul className="space-y-1.5">
-        {calendars.map((calendar) => (
-          <li key={calendar.id} className="flex items-center gap-2 text-sm">
-            <span
-              aria-hidden="true"
-              className="h-3 w-3 rounded-full"
-              style={{ backgroundColor: `hsl(${calendar.hue} 65% 50%)` }}
+        {calendars.map((cal) => (
+          <li key={cal.id} className="flex items-center gap-2 text-sm">
+            <ColorPicker hue={cal.hue} onPick={(h) => void recolor(cal.id, h)} label={t('editColor')} />
+            <Input
+              aria-label={t('renameCalendar')}
+              value={cal.name}
+              placeholder={cal.id === DEFAULT_CALENDAR_ID ? t('defaultCalendarName') : t('calendarName')}
+              onChange={(e) => void rename(cal.id, e.target.value)}
+              className="min-w-32 flex-1"
             />
-            <span className="flex-1">
-              {calendar.id === DEFAULT_CALENDAR_ID ? t('defaultCalendarName') : calendar.name}
-            </span>
             <label className="flex items-center gap-1.5 text-xs text-ink-muted">
               <input
                 type="checkbox"
-                checked={calendar.visible}
-                aria-label={t('calendarVisible', {
-                  name: calendar.id === DEFAULT_CALENDAR_ID ? t('defaultCalendarName') : calendar.name,
-                })}
-                onChange={() => void toggleVisible(calendar.id)}
+                checked={cal.visible}
+                aria-label={t('calendarVisible', { name: display(cal) })}
+                onChange={() => void toggleVisible(cal.id)}
                 className="accent-accent"
               />
               {t('shown')}
             </label>
-            {calendar.id !== DEFAULT_CALENDAR_ID && (
-              <Button variant="ghost" onClick={() => void remove(calendar.id)}>
-                {t('removeCalendar')}
+            {cal.id !== DEFAULT_CALENDAR_ID && (
+              <Button variant="ghost" aria-label={t('removeCalendar')} onClick={() => void remove(cal.id)}>
+                ✕
               </Button>
             )}
           </li>
@@ -65,32 +77,31 @@ export function CalendarsManager() {
           setName('');
         }}
       >
-        <input
+        <ColorPicker hue={hue} onPick={setHue} label={t('editColor')} />
+        <Input
           aria-label={t('calendarName')}
           placeholder={t('calendarName')}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="min-w-36 flex-1 rounded-lg border border-line bg-surface-raised px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-accent"
+          className="min-w-36 flex-1"
         />
-        <div role="radiogroup" aria-label={t('calendarColor')} className="flex gap-1">
-          {HUES.map((h, i) => (
-            <button
-              key={h}
-              type="button"
-              role="radio"
-              aria-checked={hue === h}
-              aria-label={t('colorOption', { number: i + 1 })}
-              onClick={() => setHue(h)}
-              className={[
-                'h-5 w-5 rounded-full border-2',
-                hue === h ? 'border-ink' : 'border-transparent',
-              ].join(' ')}
-              style={{ backgroundColor: `hsl(${h} 65% 50%)` }}
-            />
-          ))}
-        </div>
         <Button type="submit">{t('addCalendar')}</Button>
       </form>
-    </section>
+
+      <label className="flex items-center gap-2 text-xs text-ink-muted">
+        {t('defaultCalendar')}
+        <Select
+          aria-label={t('defaultCalendar')}
+          value={defaultCalendarId}
+          onChange={(e) => void setDefaultCalendar(e.target.value)}
+        >
+          {calendars.map((cal) => (
+            <option key={cal.id} value={cal.id}>
+              {display(cal)}
+            </option>
+          ))}
+        </Select>
+      </label>
+    </Card>
   );
 }

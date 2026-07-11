@@ -28,6 +28,7 @@ export function buildCandidates(
   items: ReadonlyArray<PlanItem>,
   recipes: ReadonlyMap<string, Recipe>,
   slotDate: ISODate,
+  slotId: string,
   working: ReadonlyMap<string, ISODate>,
   usedThisWeek: ReadonlySet<string>,
   previousDayTags: ReadonlySet<string>,
@@ -39,7 +40,7 @@ export function buildCandidates(
   const candidates: Candidate[] = [];
 
   for (const item of items) {
-    if (!passesGates(item, slotDate, working, usedThisWeek, settings, flags)) continue;
+    if (!passesGates(item, slotDate, slotId, working, usedThisWeek, settings, flags)) continue;
 
     const recipe = recipes.get(item.recipeId);
     const d = daysSince(item, slotDate, working);

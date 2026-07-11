@@ -44,18 +44,42 @@ importers:
 
   packages/apps/web:
     dependencies:
+      '@almanac/body':
+        specifier: workspace:*
+        version: link:../../modules/body
+      '@almanac/calendar-interop':
+        specifier: workspace:*
+        version: link:../../modules/calendar-interop
+      '@almanac/checkin':
+        specifier: workspace:*
+        version: link:../../modules/checkin
       '@almanac/core':
         specifier: workspace:*
         version: link:../../core
+      '@almanac/cycle':
+        specifier: workspace:*
+        version: link:../../modules/cycle
       '@almanac/food':
         specifier: workspace:*
         version: link:../../kernels/food
+      '@almanac/macros':
+        specifier: workspace:*
+        version: link:../../modules/macros
       '@almanac/meals':
         specifier: workspace:*
         version: link:../../modules/meals
+      '@almanac/search':
+        specifier: workspace:*
+        version: link:../../modules/search
+      '@almanac/shopping':
+        specifier: workspace:*
+        version: link:../../modules/shopping
       '@almanac/tasks':
         specifier: workspace:*
         version: link:../../modules/tasks
+      '@almanac/workouts':
+        specifier: workspace:*
+        version: link:../../modules/workouts
       '@tauri-apps/plugin-notification':
         specifier: ^2.3.3
         version: 2.3.3
@@ -120,6 +144,39 @@ importers:
         specifier: workspace:*
         version: link:../../core
 
+  packages/modules/body:
+    dependencies:
+      '@almanac/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/modules/calendar-interop:
+    dependencies:
+      '@almanac/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/modules/checkin:
+    dependencies:
+      '@almanac/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/modules/cycle:
+    dependencies:
+      '@almanac/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/modules/macros:
+    dependencies:
+      '@almanac/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@almanac/food':
+        specifier: workspace:*
+        version: link:../../kernels/food
+
   packages/modules/meals:
     dependencies:
       '@almanac/core':
@@ -129,7 +186,28 @@ importers:
         specifier: workspace:*
         version: link:../../kernels/food
 
+  packages/modules/search:
+    dependencies:
+      '@almanac/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/modules/shopping:
+    dependencies:
+      '@almanac/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@almanac/food':
+        specifier: workspace:*
+        version: link:../../kernels/food
+
   packages/modules/tasks:
+    dependencies:
+      '@almanac/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/modules/workouts:
     dependencies:
       '@almanac/core':
         specifier: workspace:*

@@ -16,10 +16,12 @@ export interface CommitResult {
 export function commitWeek(items: ReadonlyArray<PlanItem>, plan: WeekPlan): CommitResult {
   const latest = new Map<string, ISODate>();
   for (const entry of plan) {
-    if (entry.recipeId === null) continue;
-    const seen = latest.get(entry.recipeId);
-    if (seen === undefined || diffDays(seen, entry.date) > 0) {
-      latest.set(entry.recipeId, entry.date);
+    for (const cell of Object.values(entry.slots)) {
+      if (cell.recipeId === null) continue;
+      const seen = latest.get(cell.recipeId);
+      if (seen === undefined || diffDays(seen, entry.date) > 0) {
+        latest.set(cell.recipeId, entry.date);
+      }
     }
   }
 

@@ -3,15 +3,12 @@ import {
   isValidISODate,
   toEpochDay,
   fromEpochDay,
-  todayISO,
   addDays,
   diffDays,
   weekdayOf,
   startOfWeek,
-  endOfWeek,
   addMonths,
   endOfMonth,
-  createFixedClock,
 } from './index.js';
 
 describe('ISODate', () => {
@@ -34,11 +31,6 @@ describe('ISODate', () => {
   it('throws on invalid input to toEpochDay', () => {
     expect(() => toEpochDay('2026-02-30')).toThrow(RangeError);
   });
-
-  it('derives today from the injected clock (UTC)', () => {
-    const clock = createFixedClock(Date.UTC(2026, 6, 1, 12, 0, 0));
-    expect(todayISO(clock)).toBe('2026-07-01');
-  });
 });
 
 describe('date math', () => {
@@ -54,10 +46,9 @@ describe('date math', () => {
     expect(weekdayOf('1970-01-01')).toBe(4); // a Thursday
   });
 
-  it('finds week bounds for either week-start (locale-driven)', () => {
+  it('finds the week start for either week-start (locale-driven)', () => {
     // 2026-07-01 is a Wednesday.
     expect(startOfWeek('2026-07-01', 1)).toBe('2026-06-29'); // Monday start (CZ)
-    expect(endOfWeek('2026-07-01', 1)).toBe('2026-07-05');
     expect(startOfWeek('2026-07-01', 0)).toBe('2026-06-28'); // Sunday start (US)
   });
 

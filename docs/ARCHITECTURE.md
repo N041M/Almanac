@@ -4,8 +4,9 @@ How Almanac is put together, and the laws that keep it that way. Diagrams are
 [Mermaid](https://mermaid.js.org/) (GitHub renders them inline).
 
 > **Legend for "built vs planned":** ✅ implemented today · 🔵 specified contract,
-> not yet coded (design doc §5–§7). Phase 0 is a scaffold, so most domain types
-> are still 🔵.
+> not yet coded. As of Phase 9 (2026-07-11) the core, kernel, nine modules, and
+> both clients are ✅; the remaining 🔵 are the outstanding P9 modules and
+> P10–P12 (sync, mobile, multi-user).
 
 ## The laws
 
@@ -41,22 +42,29 @@ flowchart RL
   end
   subgraph Modules["modules (spokes — never import each other)"]
     meals["@almanac/meals ✅"]
-    future["future: tasks, macros,<br/>shopping, cycle, … 🔵"]
+    foodmods["@almanac/shopping ✅<br/>@almanac/macros ✅"]
+    coremods["@almanac/tasks ✅ · @almanac/search ✅<br/>@almanac/calendar-interop ✅<br/>@almanac/checkin ✅ · @almanac/cycle ✅<br/>@almanac/body ✅"]
+    future["future: workouts, weather,<br/>insights, birthdays, planner 🔵"]
   end
   subgraph Kernels["kernels"]
     food["@almanac/food ✅"]
   end
   core["@almanac/core<br/>(the hub) ✅"]
 
-  desktop --> meals & food & core
-  web --> meals & food & core
+  desktop --> web
+  web --> meals & foodmods & coremods & food & core
   meals --> food & core
-  future --> food & core
+  foodmods --> food & core
+  coremods --> core
+  future --> core
   food --> core
 
   classDef planned stroke-dasharray:4 3;
   class future planned;
 ```
+
+Shopping and macros read the planned meals off the **shared day record by
+namespace** — the L1 seam — which is why neither imports the meals module.
 
 **Boundary matrix (lint-enforced):**
 
@@ -86,14 +94,20 @@ classDiagram
 ```
 
 Also built: **`StoragePort`** (read/write/remove/keys + optional batched
-`readMany`), **`SyncPort`** (batch push / pull-since-revision per D4), and the
-**`WeatherPort`** / **`NutritionPort`** contracts (adapters land with their
-modules). Planned (ROADMAP P6): `NotificationPort`.
+`readMany`; adapters: memory, localStorage, SQLite via Tauri, all passing one
+contract suite), **`SyncPort`** (batch push / pull-since-revision per D4, no
+server yet), **`NotificationPort`** (Tauri + Web Notifications adapters),
+**`FeedPort`** (ICS subscriptions), **`NutritionPort`** (Open Food Facts
+adapter with caching), and the **`WeatherPort`** contract (its adapter lands
+with the P9 weather module).
 
-## Domain model (contract — 🔵 not yet implemented)
+## Domain model (✅ built — Phases 3–4, generalized by D8)
 
-The shape the core + first module will take, per design doc §5 (day record), §6
-(meal engine), §7 (food kernel). Shown so the target is legible while we build.
+The core + first module, per design doc §5 (day record), §6 (meal engine), §7
+(food kernel). One shape has since changed deliberately: **D8** generalized a
+plan entry from one meal per day to one per **cell** (day × configurable meal
+slot) — `PlanEntry.slots: Record<slotId, SlotEntry>`, each slot carrying its
+own `recipeId`/`locked`/`breakdown`.
 
 ```mermaid
 classDiagram
@@ -124,6 +138,9 @@ classDiagram
   }
   class PlanEntry {
     +ISODate date
+    +slots: Record~slotId, SlotEntry~
+  }
+  class SlotEntry {
     +string|null recipeId
     +boolean locked
     +SelectionBreakdown|null breakdown
@@ -149,7 +166,8 @@ classDiagram
   }
 
   PlanItem --> Recipe : recipeId (meals → food kernel)
-  PlanEntry --> Recipe : recipeId
+  PlanEntry --> SlotEntry : per meal slot (D8)
+  SlotEntry --> Recipe : recipeId
   Recipe "1" --> "*" Ingredient : via RecipeIngredient
   Day --> PlanEntry : meals namespace
 
@@ -161,9 +179,12 @@ classDiagram
 its *planning* attributes live in the **meals module** (`PlanItem`), linked by
 `recipeId`. That's why macros/shopping can reuse recipes without importing meals.
 
-## Meal engine flow (contract — 🔵 Phase 4)
+## Meal engine flow (✅ Phase 4; per-cell since D8)
 
-The one fully-specified algorithm (design doc §6). Sketch of `generateWeek`:
+The one fully-specified algorithm (design doc §6), implemented exactly and
+guarded by seeded statistical tests (§12). Since D8 the loop below runs per
+**cell** (day × meal slot, day-major) with cooldown/week-repeat/tag history
+shared across all cells. Sketch of `generateWeek`:
 
 ```mermaid
 flowchart TD
@@ -182,22 +203,34 @@ flowchart TD
 Determinism note (L4): identical state + different `Rng` seed ⇒ different weeks;
 that's the anti-clustering property the statistical tests guard (design §12).
 
-## What's actually built today
+## What's actually built today (Phases 0–8 ✅, Phase 9 🔨)
 
-- **Core (Phase 1)** ✅ — time (`ISODate`, date math, fixed clock), seeded RNG,
-  units (convert/normalize/combine), recurrence v1 (daily/weekly/monthly,
-  interval/count/until, never-throws), sparse Day record + `DayStore` with
-  isolated versioned slice codecs (+ batched range reads), calendar model
-  (locale week-start grids, priority intensity scale), signal registry, i18n
-  service, and the six port contracts.
-- **Web renderer (Phase 2)** ✅ — design tokens (system light+dark),
-  month/week/day views + switcher, keyboard-first grid
-  (`aria-activedescendant` roving selection), EN/CS via react-i18next,
-  `localStorage` `StoragePort`, Zustand store, demo "star a day" slice
-  exercising the full Day pipeline. 51 tests.
-- **Tauri shell** 🔨 — compiles with icons; native (SQLite) `StoragePort`
-  pending.
-- The **food kernel and meals engine** classes above remain 🔵 (Phases 3–4).
+- **Core (P1, extended P5)** ✅ — time + timed/multi-day timezone-aware spans,
+  seeded RNG, units, recurrence v2 (yearly, nth-weekday, exDates, per-instance
+  overrides, series split), sparse Day record + `DayStore` with isolated
+  versioned slice codecs and batched range reads, calendar model (grids,
+  unbounded priority intensity per D9), signal registry, i18n service, and the
+  port contracts above.
+- **Food kernel (P3)** ✅ — ingredients/recipes/derived nutrition, catalog,
+  OFF adapter with caching + quiet offline degradation.
+- **Meals (P4, D8)** ✅ — the §6 engine per cell with configurable slots,
+  lock/re-roll, variety temperature, "why this pick" breakdowns, statistical
+  anti-pattern suite.
+- **Tasks (P6)** ✅ — tasks/events/habits as tombstoned entity records (D6/D7),
+  NL quick entry (EN+CS), categories/locations/priority sigils, multiple
+  calendars, reminders over `NotificationPort`, ⌘K palette.
+- **Shopping + Macros (P7)** ✅ — two-trigger aggregation windows; on-read
+  intake derivation + targets. Neither imports meals (shared-record seam).
+- **Interop & findability (P8)** ✅ — own minimal RFC 5545 parse/serialize,
+  ICS import/export, read-only feed subscriptions with stale-cache degradation,
+  ranked search in the palette, year density view, print stylesheet.
+- **Life modules (P9, in progress)** 🔨 — check-in ✅, cycle (median stats,
+  informational phase/fertile estimates, LH-test anchoring) ✅, body & weight
+  trend ✅; workouts, weather, insights, birthdays, planner 🔵. Per-module
+  show/hide setting ✅.
+- **Clients** ✅ — the shared React renderer (web port) and the Tauri v2
+  desktop shell with a SQLite `StoragePort`; vault export/import as the
+  pre-sync durability story. ~390 tests across node + jsdom projects.
 
 Phase-by-phase narrative: [BUILD_JOURNAL.md](BUILD_JOURNAL.md) · sequence:
 [ROADMAP.md](ROADMAP.md).

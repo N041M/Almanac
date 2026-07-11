@@ -9,6 +9,99 @@ Entries are grouped by **build phase** (design doc §13) until v1.
 
 ## [Unreleased]
 
+### Phase 9 — Life modules (in progress)
+- **Daily check-in** (`@almanac/checkin`): mood/energy (1–5), symptoms, note
+  as a day slice — the shared day data cycle and insights read by namespace.
+- **Cycle tracking** (`@almanac/cycle`): per-day flow + optional LH test;
+  periods/stats derive on read — median of the last 6 cycles, an irregularity
+  gate (spread > 9 days ⇒ no claims), prediction window (shortest…longest
+  recent), luteal back-count ovulation, fertile window, day-in-cycle. A
+  positive LH test anchors the current cycle and teaches a personal luteal
+  length. All informational; predictions switchable off while logging stands.
+- **Body & weight trend** (`@almanac/body`): kg + body-fat day slice,
+  exponentially smoothed trend, weekly rate from the trend (null on thin
+  history); implausible entries revert quietly.
+- **Per-module show/hide** in Settings — a view filter over tabs, chips,
+  panels, palette, and search; never deletion (`hiddenModules` in settings).
+- Calendar surfaces now show **every planned meal slot** (was: first only).
+- Roadmap additions (2026-07-11 gap analysis): planner/timeboxing module,
+  time-allocation insights, P12 booking buffers/limits + focus auto-decline,
+  secondary-TZ leftover audit.
+
+### Phase 8 — Interop & findability
+- **ICS import/export** (`@almanac/calendar-interop`): own minimal RFC 5545
+  parse/serialize (P8-entry decision — no dep), all-day/UTC/TZID,
+  RRULE/EXDATE ⇄ core recurrence, skipped-component counts, re-import dedup.
+- **Subscriptions**: read-only ICS feeds behind core's `FeedPort`; cached raw
+  ICS works offline, failed refresh keeps the copy with a quiet staleness hint.
+- **Search** (`@almanac/search`): pure ranked query (title-prefix > title >
+  keyword, AND terms) folded into the ⌘K palette; dated hits jump the calendar.
+- **Year view** (12-month density grid) and a **print stylesheet**.
+- **Multiple calendars** UI (Apple-inspired popover, per-calendar color/
+  visibility) + shared UI primitives.
+- **D8:** several meals a day — engine generalized day → cell (day × slot),
+  configurable slots, per-cell lock/re-roll; week re-roll with undo.
+- **D9:** numbered priority — unbounded levels, intensity fade capped at 0.4.
+
+### Phase 7 — Macros + Shopping
+- `@almanac/shopping`: one pure `aggregateWindow` engine behind "shopping now"
+  and recurring shopping days; unit-normalized merging (compatible fold,
+  incompatible stay separate); derived on demand, never stored.
+- `@almanac/macros`: intake derived on read from the planned meals (servings
+  scalable/excludable) + manual per-day log slice + editable targets; sparse —
+  a macro shows only where something contributed it.
+- Neither module imports meals — both read the shared `meals` day namespace
+  (the L1 seam, §8.1 reconciled to whole-recipe quantities).
+
+### Phase 6 — Tasks module
+- `@almanac/tasks`: tasks · events · habits as **tombstoned entity records**
+  (D6) with the P12-ready event shape pinned at entry (D7: `calendarId`,
+  transparency, visibility, location).
+- **NL quick entry** (EN + CS): dates/times/durations + `#category`
+  `@location` `!N` sigils; unparseable text still creates an item (L5).
+- Recurrence v2 in anger: per-instance overrides, "this and following" series
+  split, yearly + nth-weekday rules.
+- **Multiple calendars** on the event shape; **reminders** over a new
+  `NotificationPort` (Tauri + Web adapters, denied permission = quiet badges);
+  **⌘K command palette** with jump-to-date.
+- Habit streaks on the calendar; done-task fade; snooze deferred (no platform
+  support) per the L5 row.
+
+### Phase 5 — Calendar core v2
+- **Recurrence v2** (additive): `yearly`, `byWeekdayPos` (incl. `-1`),
+  `exDates`, per-instance **overrides** via `applyOverrides`; malformed ⇒ `[]`.
+- **Timed events**: `{ startUtc, endUtc, zone }` — absolute instant + display
+  intent; multi-day spans contribute to every day they touch (`daysCovered`);
+  unknown zone renders in the viewer's zone (L5).
+- **Views**: hour-grid **Timeline** with all-day lane, **Agenda**; **drag &
+  drop** between days; **undo** stack (⌘Z + toast); day-entry **copy/paste**.
+- **Settings surface** (week start, time format) + **vault export/import**
+  (full-store JSON; corrupt entries skipped and counted).
+- **`StoragePort` contract suite** run against memory, localStorage, and the
+  desktop's new **SQLite adapter** (Tauri).
+
+### Phase 4 — Meals module (the §6 engine, exactly)
+- `@almanac/meals`: gates (enabled/cooldown/week-repeat) → multiplicative
+  scorers (frequency/recency/tag-variety) → temperature-weighted **draw**
+  (never argmax), with the §6.5 degradation ladder and per-pick
+  `SelectionBreakdown`.
+- Seeded-RNG statistical suite (§12): anti-clustering, weight monotonicity,
+  variety spread; ≥90% engine coverage. **Module-manifest seam** defined first
+  (codecs + i18n bundles registered through core).
+- Meals UI: week grid, lock/re-roll, variety slider, "why this pick" panel,
+  ingredient editor with **nutrition guessed from ingredients** (OFF matching,
+  canonical names, offline = enrichment lost, entry never blocked).
+
+### Phase 3 — Food kernel
+- `@almanac/food`: ingredients/recipes, `deriveRecipeNutrition` (whole-recipe
+  quantities), catalog store, **Open Food Facts** adapter behind
+  `NutritionPort` with caching and quiet offline degradation.
+
+### Phase 2 — finish (desktop store + docs alignment)
+- **SQLite `StoragePort`** in the Tauri shell — the desktop's on-device store
+  (L6); the shared renderer is unchanged (same port).
+- Design doc aligned with D0–D5; Phase 2 marked complete.
+
 ### Roadmap — all gap features planned, multi-user in scope (D5)
 - New [docs/ROADMAP.md](docs/ROADMAP.md): the authoritative 12-phase sequence.
   Adds notifications (`NotificationPort`), recurrence v2 (yearly, nth-weekday,
@@ -150,6 +243,6 @@ Entries are grouped by **build phase** (design doc §13) until v1.
   narrative), DECISIONS, and an index.
 
 ### Not yet built
-Phase 2 onward (desktop calendar shell + i18n wiring; then food kernel, meal
-engine, …). Apps are stubs — no Tauri/Vite/React wiring yet. Kernels/modules
-still stubs.
+Phase 9's remaining modules (workouts, weather, insights, birthdays, planner)
+and Phases 10–12 (sync server, mobile + surfaces, multi-user). See
+[docs/ROADMAP.md](docs/ROADMAP.md).

@@ -5,6 +5,56 @@ to depart on), with rationale. Newest first. Keep entries short.
 
 ---
 
+## D9 — Numbered priority: unbounded levels, capped fade (§5 intensity scale)
+
+**Decided:** 2026-07-07 · **Status:** accepted · **Design ref:** §5, §8
+
+Three priority levels weren't enough. `Priority` widens from `1 | 2 | 3` to **any
+positive integer** (1 = most important, no upper bound). The **1/2/3 pills stay
+as presets**; a numeric field beside them takes any level, and quick entry's
+`!N` sigil accepts multi-digit numbers (`!5`, `!12`).
+
+The calendar keeps owning **one** intensity scale (§5), now derived from the
+number: `intensity = max(MIN, 1 − (N−1) × 0.3)`.
+- The original values are preserved exactly — P1 = 1.0, P2 = 0.7, P3 = 0.4.
+- Beyond P3 the fade **clamps at 0.4** so a very low priority stays legible and
+  never disappears — the scale is unbounded, the *fade* is not.
+- Absent or malformed priority → full intensity, never NaN (L5).
+- 1–3 keep their named labels (High/Medium/Low); higher levels render as a plain
+  numeric badge ("P5") rather than inventing a name for every level.
+
+## D8 — Meals: several meals a day (§6 generalized from day → cell)
+
+**Decided:** 2026-07-07 · **Status:** accepted · **Design ref:** §6 (a deliberate
+change to the §6 contract, made with the user's explicit go-ahead)
+
+§6 planned **one meal per day** (`WeekPlan` = 7 entries, one `recipeId` each).
+Real meal planning needs breakfast/lunch/dinner. The engine's unit generalizes
+from a **day** to a **cell = (day × meal slot)**. The algorithm itself is
+unchanged: gates → scorers → weighted `draw` run per cell, day-major in slot
+order, sharing the cooldown / week-repeat / tag history across every cell.
+
+- **Meal slots are configuration** — `MealSlot {id, name}` under `meals:slots`;
+  default **Breakfast · Lunch · Dinner**, adjustable (more, fewer, renamed).
+- `PlanEntry.slots: Record<slotId, SlotEntry>`; **lock, breakdown and re-roll are
+  per cell**. `rerollDay` → **`rerollCell(dayIndex, slotId)`**. The whole-week
+  generate (which already preserved locked cells) is surfaced as **"Re-roll
+  week"**.
+- **Slot eligibility** (additive): `PlanItem.slots?: string[]` — a recipe may
+  declare which slots it suits (absent/empty = any). It is a new **relaxable
+  gate**, kept *longest* in the ladder and relaxed **last**: an empty slot is
+  worse than a wrong-slot meal (L5).
+- Cooldown is in **days**, so a recipe cannot repeat across one day's slots
+  (d = 0 < cooldown) — the same rule that spaces it across the week.
+- `avoidSameTag` now compares a cell with the **previous cell in order** (within
+  a day: the previous meal; across days: the last meal of the day before).
+- **Back-compat:** a legacy single-meal day slice decodes into the **dinner** slot.
+- **Ripple (and more correct):** shopping aggregates **all** of a day's meals;
+  macros sum **all** planned meals; the month chip shows a representative meal.
+
+The §12 statistical/anti-pattern suite is unchanged in intent — run with a single
+slot it is exactly §6's original behaviour, and it still passes.
+
 ## D7 — Event/task shape pinned before the first event persists
 
 **Decided:** 2026-07-05 · **Status:** accepted · **Design ref:** §8 tasks, ROADMAP P6 entry

@@ -3,16 +3,19 @@ import { useTranslation } from 'react-i18next';
 import { EN_US, CS_CZ } from '@almanac/core';
 import { useCalendar } from './state/store';
 import { useSettings } from './state/settings';
+import { useSubscriptions } from './state/subscriptions';
 import { useUndo } from './state/undo';
 import { CalendarView } from './calendar/CalendarView';
 import { DayPanel } from './calendar/DayPanel';
 import { MealsView } from './meals/MealsView';
+import { ShoppingView } from './shopping/ShoppingView';
+import { MacrosView } from './macros/MacrosView';
 import { TasksView } from './tasks/TasksView';
 import { SettingsView } from './settings/SettingsView';
 import { CommandPalette } from './palette/CommandPalette';
 import { Button } from './ui/Button';
 
-type Screen = 'calendar' | 'tasks' | 'meals' | 'settings';
+type Screen = 'calendar' | 'tasks' | 'meals' | 'shopping' | 'macros' | 'settings';
 
 /** The 5.4 undo toast: names the last action, offers Undo, fades on its own. */
 function UndoToast() {
@@ -25,6 +28,7 @@ function UndoToast() {
   return (
     <div
       role="status"
+      data-no-print
       className="fixed bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-line bg-surface-raised px-4 py-2 text-sm shadow-lg"
     >
       <span>{t(toastKey)}</span>
@@ -50,12 +54,21 @@ export function App() {
   const view = useCalendar((s) => s.view);
   const loadSettings = useSettings((s) => s.load);
   const rememberLanguage = useSettings((s) => s.rememberLanguage);
+  const hiddenModules = useSettings((s) => s.hiddenModules);
   const [screen, setScreen] = useState<Screen>('calendar');
   const [paletteOpen, setPaletteOpen] = useState(false);
 
-  // Restore persisted settings (incl. language) once, at startup.
+  // A hidden module keeps no screen: standing on one bounces home (L5 — the
+  // filter never strands the user on a blank surface).
+  useEffect(() => {
+    if (hiddenModules.includes(screen)) setScreen('calendar');
+  }, [hiddenModules, screen]);
+
+  // Restore persisted settings (incl. language) and subscribed feeds once, at
+  // startup — feeds render from cache immediately and refresh in the background.
   useEffect(() => {
     void loadSettings();
+    void useSubscriptions.getState().load();
   }, [loadSettings]);
 
   // ⌘Z undoes the last slice write (not in text fields, where the platform's
@@ -79,7 +92,8 @@ export function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  const tab = (target: Screen, label: string) => (
+  const tab = (target: Screen, label: string) =>
+    hiddenModules.includes(target) ? null : (
     <button
       type="button"
       onClick={() => setScreen(target)}
@@ -105,6 +119,8 @@ export function App() {
           {tab('calendar', t('navCalendar'))}
           {tab('tasks', t('tasks:title'))}
           {tab('meals', t('meals:title'))}
+          {tab('shopping', t('shopping:title'))}
+          {tab('macros', t('macros:title'))}
           {tab('settings', t('navSettings'))}
         </nav>
         <label className="ml-auto flex items-center gap-2 text-sm text-ink-muted">
@@ -132,6 +148,16 @@ export function App() {
       {screen === 'meals' && (
         <main className="mx-auto max-w-5xl p-6">
           <MealsView />
+        </main>
+      )}
+      {screen === 'shopping' && (
+        <main className="mx-auto max-w-3xl p-6">
+          <ShoppingView />
+        </main>
+      )}
+      {screen === 'macros' && (
+        <main className="mx-auto max-w-3xl p-6">
+          <MacrosView />
         </main>
       )}
       {screen === 'settings' && (

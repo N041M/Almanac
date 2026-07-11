@@ -15,10 +15,12 @@ import { useMeals } from '../state/meals';
 import { useSettings } from '../state/settings';
 import { Button } from '../ui/Button';
 import { ViewSwitcher } from './ViewSwitcher';
+import { CalendarsPopover } from './CalendarsPopover';
 import { MonthGrid } from './MonthGrid';
 import { WeekGrid } from './WeekGrid';
 import { DayDetail } from './DayDetail';
 import { AgendaView } from './AgendaView';
+import { YearView } from './YearView';
 import { TimelineView } from '../timeline/TimelineView';
 import { today } from '../clock';
 
@@ -101,7 +103,9 @@ export function CalendarView() {
         ? [week[0], week[6]]
         : view === 'agenda'
           ? [anchor, addDays(anchor, AGENDA_DAYS - 1)]
-          : [shownDay, shownDay];
+          : view === 'year'
+            ? [`${year}-01-01` as ISODate, `${year}-12-31` as ISODate]
+            : [shownDay, shownDay];
   useEffect(() => {
     if (first !== undefined && last !== undefined) void loadRange(first, last);
   }, [first, last, loadRange]);
@@ -109,9 +113,11 @@ export function CalendarView() {
   const title =
     view === 'month'
       ? formatters.month.format(dateFromISO(`${anchor.slice(0, 7)}-01`))
-      : view !== 'day' && first !== undefined && last !== undefined
-        ? formatters.range.formatRange(dateFromISO(first), dateFromISO(last))
-        : formatters.full.format(dateFromISO(shownDay));
+      : view === 'year'
+        ? String(year)
+        : view !== 'day' && first !== undefined && last !== undefined
+          ? formatters.range.formatRange(dateFromISO(first), dateFromISO(last))
+          : formatters.full.format(dateFromISO(shownDay));
 
   // Roving selection: the grid is one tab stop; arrows move the selected day
   // (aria-activedescendant), crossing range edges as needed. ⌘C/⌘X/⌘V copy,
@@ -152,7 +158,7 @@ export function CalendarView() {
   return (
     <section aria-label={t('title')}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" data-no-print>
           <Button variant="ghost" aria-label={t('prev')} onClick={prev}>
             ‹
           </Button>
@@ -162,7 +168,10 @@ export function CalendarView() {
           <Button onClick={goToday}>{t('today')}</Button>
         </div>
         <h2 className="text-base font-semibold capitalize">{title}</h2>
-        <ViewSwitcher />
+        <div className="flex items-center gap-2" data-no-print>
+          <CalendarsPopover />
+          <ViewSwitcher />
+        </div>
       </div>
 
       {view === 'month' && (
@@ -186,6 +195,7 @@ export function CalendarView() {
       )}
       {view === 'timeline' && <TimelineView days={week} todayDate={todayDate} />}
       {view === 'agenda' && first !== undefined && <AgendaView start={first} />}
+      {view === 'year' && <YearView year={year} />}
       {view === 'day' && <DayDetail date={shownDay} heading={false} />}
     </section>
   );

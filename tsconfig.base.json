@@ -27,7 +27,23 @@
       "@almanac/meals": ["./packages/modules/meals/src/index.ts"],
       "@almanac/tasks": ["./packages/modules/tasks/src/index.ts"],
       "@almanac/tasks/*": ["./packages/modules/tasks/src/*"],
-      "@almanac/meals/*": ["./packages/modules/meals/src/*"]
+      "@almanac/meals/*": ["./packages/modules/meals/src/*"],
+      "@almanac/shopping": ["./packages/modules/shopping/src/index.ts"],
+      "@almanac/shopping/*": ["./packages/modules/shopping/src/*"],
+      "@almanac/macros": ["./packages/modules/macros/src/index.ts"],
+      "@almanac/macros/*": ["./packages/modules/macros/src/*"],
+      "@almanac/calendar-interop": ["./packages/modules/calendar-interop/src/index.ts"],
+      "@almanac/calendar-interop/*": ["./packages/modules/calendar-interop/src/*"],
+      "@almanac/search": ["./packages/modules/search/src/index.ts"],
+      "@almanac/search/*": ["./packages/modules/search/src/*"],
+      "@almanac/checkin": ["./packages/modules/checkin/src/index.ts"],
+      "@almanac/checkin/*": ["./packages/modules/checkin/src/*"],
+      "@almanac/cycle": ["./packages/modules/cycle/src/index.ts"],
+      "@almanac/cycle/*": ["./packages/modules/cycle/src/*"],
+      "@almanac/body": ["./packages/modules/body/src/index.ts"],
+      "@almanac/body/*": ["./packages/modules/body/src/*"],
+      "@almanac/workouts": ["./packages/modules/workouts/src/index.ts"],
+      "@almanac/workouts/*": ["./packages/modules/workouts/src/*"]
     }
   }
 }

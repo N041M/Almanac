@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createSeededRng } from '@almanac/core';
 import type { Recipe } from '@almanac/food';
-import type { PlanItem, Settings, WeekPlan } from './types.js';
+import type { PlanEntry, PlanItem, Settings, SlotEntry, WeekPlan } from './types.js';
 import { RECENCY_TAU, TAG_PENALTY } from './constants.js';
 import { passesGates, daysSince, ALL_GATES } from './gates.js';
 import { recencyFactor, tagFactor } from './scorers.js';
@@ -9,11 +9,21 @@ import { buildCandidates } from './candidates.js';
 import { draw } from './draw.js';
 import { selectSlot } from './select-slot.js';
 import { generateWeek, dayNameOf } from './generate-week.js';
-import { rerollDay } from './reroll-day.js';
+import { rerollCell } from './reroll-day.js';
 import { commitWeek } from './commit-week.js';
 
-// 2026-07-06 is a Monday.
+// 2026-07-06 is a Monday. Most tests use a single meal slot 'd'.
 const MONDAY = '2026-07-06';
+const SLOTS = ['d'];
+
+/** The recipe in day `entry`'s single slot. */
+const rid = (entry: PlanEntry | undefined): string | null => entry?.slots['d']?.recipeId ?? null;
+const slotOf = (entry: PlanEntry | undefined): SlotEntry | undefined => entry?.slots['d'];
+/** Lock a single-slot day entry. */
+const lock = (e: PlanEntry): PlanEntry => ({
+  ...e,
+  slots: { d: { ...(e.slots['d'] ?? { recipeId: null, breakdown: null }), locked: true } as SlotEntry },
+});
 
 function item(recipeId: string, overrides: Partial<PlanItem> = {}): PlanItem {
   return { recipeId, weight: 1, cooldownDays: null, enabled: true, lastServed: null, ...overrides };
@@ -65,40 +75,43 @@ describe('scorers (§6.4)', () => {
 
 describe('gates (§6.3)', () => {
   const working = new Map([['pasta', '2026-07-05']]);
+  const relaxed = { slotType: false, cooldown: false, weekRepeat: false };
 
   it('disabled is excluded on every rung — never relaxed', () => {
     const disabled = item('pasta', { enabled: false });
-    expect(passesGates(disabled, MONDAY, working, new Set(), settings(), ALL_GATES)).toBe(false);
-    expect(
-      passesGates(disabled, MONDAY, working, new Set(), settings(), {
-        cooldown: false,
-        weekRepeat: false,
-      }),
-    ).toBe(false);
+    expect(passesGates(disabled, MONDAY, 'd', working, new Set(), settings(), ALL_GATES)).toBe(false);
+    expect(passesGates(disabled, MONDAY, 'd', working, new Set(), settings(), relaxed)).toBe(false);
+  });
+
+  it('slot-type: a recipe is excluded from a slot it does not list (until relaxed)', () => {
+    const breakfastOnly = item('pasta', { slots: ['breakfast'] });
+    expect(passesGates(breakfastOnly, MONDAY, 'dinner', new Map(), new Set(), settings(), ALL_GATES)).toBe(false);
+    expect(passesGates(breakfastOnly, MONDAY, 'breakfast', new Map(), new Set(), settings(), ALL_GATES)).toBe(true);
+    // Last rung relaxes slot-type — better a wrong-slot meal than an empty one.
+    expect(passesGates(breakfastOnly, MONDAY, 'dinner', new Map(), new Set(), settings(), relaxed)).toBe(true);
   });
 
   it('cooldown: excludes d < cooldown, admits d ≥ cooldown, counts |d| (future too)', () => {
-    const pasta = item('pasta'); // served 2026-07-05, default cooldown 2
-    expect(passesGates(pasta, '2026-07-06', working, new Set(), settings(), ALL_GATES)).toBe(false);
-    expect(passesGates(pasta, '2026-07-07', working, new Set(), settings(), ALL_GATES)).toBe(true);
-    // slot *before* the working date, 1 day away: |d| = 1 < 2
-    expect(passesGates(pasta, '2026-07-04', working, new Set(), settings(), ALL_GATES)).toBe(false);
+    const pasta = item('pasta');
+    expect(passesGates(pasta, '2026-07-06', 'd', working, new Set(), settings(), ALL_GATES)).toBe(false);
+    expect(passesGates(pasta, '2026-07-07', 'd', working, new Set(), settings(), ALL_GATES)).toBe(true);
+    expect(passesGates(pasta, '2026-07-04', 'd', working, new Set(), settings(), ALL_GATES)).toBe(false);
   });
 
   it('per-item cooldownDays overrides the default; null uses it', () => {
     const strict = item('pasta', { cooldownDays: 5 });
-    expect(passesGates(strict, '2026-07-08', working, new Set(), settings(), ALL_GATES)).toBe(false);
-    expect(passesGates(strict, '2026-07-10', working, new Set(), settings(), ALL_GATES)).toBe(true);
+    expect(passesGates(strict, '2026-07-08', 'd', working, new Set(), settings(), ALL_GATES)).toBe(false);
+    expect(passesGates(strict, '2026-07-10', 'd', working, new Set(), settings(), ALL_GATES)).toBe(true);
   });
 
   it('week-repeat applies only when enabled in settings and by the rung', () => {
     const pasta = item('pasta');
     const used = new Set(['pasta']);
     const far = new Map([['pasta', '2026-06-01']]);
-    expect(passesGates(pasta, MONDAY, far, used, settings(), ALL_GATES)).toBe(false);
-    expect(passesGates(pasta, MONDAY, far, used, settings({ noWeekRepeat: false }), ALL_GATES)).toBe(true);
+    expect(passesGates(pasta, MONDAY, 'd', far, used, settings(), ALL_GATES)).toBe(false);
+    expect(passesGates(pasta, MONDAY, 'd', far, used, settings({ noWeekRepeat: false }), ALL_GATES)).toBe(true);
     expect(
-      passesGates(pasta, MONDAY, far, used, settings(), { cooldown: true, weekRepeat: false }),
+      passesGates(pasta, MONDAY, 'd', far, used, settings(), { slotType: true, cooldown: true, weekRepeat: false }),
     ).toBe(true);
   });
 
@@ -112,15 +125,7 @@ describe('buildCandidates', () => {
   it('a missing linked recipe degrades: no tags, id as name, still plannable (L5)', () => {
     const rng = createSeededRng(1);
     const candidates = buildCandidates(
-      [item('ghost')],
-      RECIPES,
-      MONDAY,
-      new Map(),
-      new Set(),
-      new Set(['italian']),
-      settings(),
-      rng,
-      ALL_GATES,
+      [item('ghost')], RECIPES, MONDAY, 'd', new Map(), new Set(), new Set(['italian']), settings(), rng, ALL_GATES,
     );
     expect(candidates).toHaveLength(1);
     expect(candidates[0]?.name).toBe('ghost');
@@ -130,15 +135,7 @@ describe('buildCandidates', () => {
   it('a zero weight floors at MIN_SCORE — still drawable, never a hard zero', () => {
     const rng = createSeededRng(1);
     const candidates = buildCandidates(
-      [item('pasta', { weight: 0 })],
-      RECIPES,
-      MONDAY,
-      new Map(),
-      new Set(),
-      new Set(),
-      settings(),
-      rng,
-      ALL_GATES,
+      [item('pasta', { weight: 0 })], RECIPES, MONDAY, 'd', new Map(), new Set(), new Set(), settings(), rng, ALL_GATES,
     );
     expect(candidates[0]?.samplingWeight).toBeGreaterThan(0);
   });
@@ -146,15 +143,7 @@ describe('buildCandidates', () => {
   it('is deterministic per seed (jitter comes from the injected rng, L4)', () => {
     const build = () =>
       buildCandidates(
-        ALL_ITEMS,
-        RECIPES,
-        MONDAY,
-        new Map(),
-        new Set(),
-        new Set(),
-        settings(),
-        createSeededRng(42),
-        ALL_GATES,
+        ALL_ITEMS, RECIPES, MONDAY, 'd', new Map(), new Set(), new Set(), settings(), createSeededRng(42), ALL_GATES,
       );
     expect(build()).toEqual(build());
   });
@@ -162,13 +151,7 @@ describe('buildCandidates', () => {
 
 describe('draw (§6.5)', () => {
   const fixed = (id: string, samplingWeight: number) => ({
-    id,
-    name: id,
-    fFreq: 1,
-    fRec: 1,
-    fTag: 1,
-    daysSince: null,
-    samplingWeight,
+    id, name: id, fFreq: 1, fRec: 1, fTag: 1, daysSince: null, samplingWeight,
   });
 
   it('returns the pick plus the full distribution, which sums to 1', () => {
@@ -195,33 +178,26 @@ describe('draw (§6.5)', () => {
 describe('selectSlot — the relaxation ladder (§6.5)', () => {
   it('all used this week + noWeekRepeat ⇒ drops week-repeat and still selects', () => {
     const used = new Set(RECIPES.keys());
-    const selected = selectSlot(
-      ALL_ITEMS, RECIPES, MONDAY, new Map(), used, new Set(), settings(), createSeededRng(1),
-    );
+    const selected = selectSlot(ALL_ITEMS, RECIPES, MONDAY, 'd', new Map(), used, new Set(), settings(), createSeededRng(1));
     expect(selected).not.toBeNull();
   });
 
   it('everything on cooldown ⇒ drops cooldown and still selects', () => {
     const working = new Map([...RECIPES.keys()].map((id) => [id, '2026-07-05'] as const));
     const selected = selectSlot(
-      ALL_ITEMS, RECIPES, MONDAY, working, new Set(), new Set(),
-      settings({ defaultCooldown: 30 }), createSeededRng(1),
+      ALL_ITEMS, RECIPES, MONDAY, 'd', working, new Set(), new Set(), settings({ defaultCooldown: 30 }), createSeededRng(1),
     );
     expect(selected).not.toBeNull();
   });
 
   it('zero enabled ⇒ null, quietly — the rung below the ladder', () => {
     const disabled = ALL_ITEMS.map((i) => ({ ...i, enabled: false }));
-    const selected = selectSlot(
-      disabled, RECIPES, MONDAY, new Map(), new Set(), new Set(), settings(), createSeededRng(1),
-    );
+    const selected = selectSlot(disabled, RECIPES, MONDAY, 'd', new Map(), new Set(), new Set(), settings(), createSeededRng(1));
     expect(selected).toBeNull();
   });
 
   it('records a full breakdown: probability, count, factors, sorted top alternatives', () => {
-    const selected = selectSlot(
-      ALL_ITEMS, RECIPES, MONDAY, new Map(), new Set(), new Set(), settings(), createSeededRng(9),
-    );
+    const selected = selectSlot(ALL_ITEMS, RECIPES, MONDAY, 'd', new Map(), new Set(), new Set(), settings(), createSeededRng(9));
     const b = selected?.breakdown;
     expect(b?.candidateCount).toBe(8);
     expect(b?.prob).toBeGreaterThan(0);
@@ -235,72 +211,73 @@ describe('selectSlot — the relaxation ladder (§6.5)', () => {
 
 describe('generateWeek (§6.5)', () => {
   it('fills Monday→Sunday with dates, day names, and breakdowns', () => {
-    const plan = generateWeek(ALL_ITEMS, RECIPES, settings(), [], createSeededRng(11));
+    const plan = generateWeek(ALL_ITEMS, RECIPES, settings(), SLOTS, [], createSeededRng(11));
     expect(plan).toHaveLength(7);
-    expect(plan[0]).toMatchObject({ date: MONDAY, dayName: 'monday', locked: false });
+    expect(plan[0]).toMatchObject({ date: MONDAY, dayName: 'monday' });
     expect(plan[6]).toMatchObject({ date: '2026-07-12', dayName: 'sunday' });
     for (const entry of plan) {
-      expect(entry.recipeId).not.toBeNull();
-      expect(entry.breakdown?.prob).toBeGreaterThan(0);
+      expect(rid(entry)).not.toBeNull();
+      expect(slotOf(entry)?.breakdown?.prob).toBeGreaterThan(0);
     }
   });
 
   it('is deterministic per seed; two seeds are allowed to differ', () => {
-    const a = generateWeek(ALL_ITEMS, RECIPES, settings(), [], createSeededRng(5));
-    const b = generateWeek(ALL_ITEMS, RECIPES, settings(), [], createSeededRng(5));
+    const a = generateWeek(ALL_ITEMS, RECIPES, settings(), SLOTS, [], createSeededRng(5));
+    const b = generateWeek(ALL_ITEMS, RECIPES, settings(), SLOTS, [], createSeededRng(5));
     expect(a).toEqual(b);
   });
 
   it('respects noWeekRepeat: seven distinct recipes', () => {
-    const plan = generateWeek(ALL_ITEMS, RECIPES, settings(), [], createSeededRng(13));
-    const ids = plan.map((e) => e.recipeId);
+    const plan = generateWeek(ALL_ITEMS, RECIPES, settings(), SLOTS, [], createSeededRng(13));
+    const ids = plan.map(rid);
     expect(new Set(ids).size).toBe(7);
   });
 
-  it('pass 1: locked days are kept verbatim and excluded from re-draw', () => {
-    const locked: WeekPlan = generateWeek(ALL_ITEMS, RECIPES, settings(), [], createSeededRng(17))
-      .map((e, i) => (i === 2 ? { ...e, locked: true } : e));
-    const lockedEntry = locked[2];
-    const plan = generateWeek(ALL_ITEMS, RECIPES, settings(), locked, createSeededRng(99));
-    expect(plan[2]).toEqual(lockedEntry);
-    // week-repeat: the locked recipe appears nowhere else
-    expect(plan.filter((e) => e.recipeId === lockedEntry?.recipeId)).toHaveLength(1);
+  it('plans every configured slot each day (three meals a day)', () => {
+    const threeSlots = ['breakfast', 'lunch', 'dinner'];
+    const plan = generateWeek(ALL_ITEMS, RECIPES, settings({ noWeekRepeat: false }), threeSlots, [], createSeededRng(4));
+    for (const entry of plan) {
+      for (const slotId of threeSlots) expect(entry.slots[slotId]?.recipeId).not.toBeNull();
+    }
+    // No recipe repeats within a single day (cooldown by day, d = 0).
+    for (const entry of plan) {
+      const ids = threeSlots.map((s) => entry.slots[s]?.recipeId);
+      expect(new Set(ids).size).toBe(threeSlots.length);
+    }
   });
 
-  it("a locked day's tags penalise the next day (previousDayTags crosses passes)", () => {
-    // Only two meals: lock 'pasta' (italian) on Monday; Tuesday's only candidate
-    // under week-repeat is 'pizza' (also italian) → its fTag records the penalty.
-    const items = [item('pasta'), item('pizza')];
-    const prev: WeekPlan = generateWeek(items, RECIPES, settings({ defaultCooldown: 0 }), [], createSeededRng(1))
-      .map((e, i) => (i === 0 ? { ...e, recipeId: 'pasta', locked: true } : e));
-    const plan = generateWeek(items, RECIPES, settings({ defaultCooldown: 0 }), prev, createSeededRng(2));
-    expect(plan[1]?.recipeId).toBe('pizza');
-    expect(plan[1]?.breakdown?.fTag).toBe(TAG_PENALTY);
+  it('pass 1: locked cells are kept verbatim and excluded from re-draw', () => {
+    const locked: WeekPlan = generateWeek(ALL_ITEMS, RECIPES, settings(), SLOTS, [], createSeededRng(17)).map(
+      (e, i) => (i === 2 ? lock(e) : e),
+    );
+    const lockedEntry = locked[2];
+    const plan = generateWeek(ALL_ITEMS, RECIPES, settings(), SLOTS, locked, createSeededRng(99));
+    expect(plan[2]).toEqual(lockedEntry);
+    expect(plan.filter((e) => rid(e) === rid(lockedEntry))).toHaveLength(1);
   });
 
   it('never mutates its inputs (pure, L4): items keep their history', () => {
     const items = [item('pasta', { lastServed: '2026-06-01' }), item('curry')];
     const before = structuredClone(items);
-    generateWeek(items, RECIPES, settings(), [], createSeededRng(3));
+    generateWeek(items, RECIPES, settings(), SLOTS, [], createSeededRng(3));
     expect(items).toEqual(before);
   });
 
   it('cooldown respects committed history across the week boundary', () => {
-    // Served the day before the week starts, cooldown 3: Mon/Tue blocked for it.
     const items = [item('pasta', { lastServed: '2026-07-05', cooldownDays: 3 }), item('curry'), item('soup')];
-    const plan = generateWeek(items, RECIPES, settings({ noWeekRepeat: false }), [], createSeededRng(23));
-    expect(plan[0]?.recipeId).not.toBe('pasta');
-    expect(plan[1]?.recipeId).not.toBe('pasta');
+    const plan = generateWeek(items, RECIPES, settings({ noWeekRepeat: false }), SLOTS, [], createSeededRng(23));
+    expect(rid(plan[0])).not.toBe('pasta');
+    expect(rid(plan[1])).not.toBe('pasta');
   });
 });
 
-describe('rerollDay (§6.5)', () => {
-  const basePlan = () => generateWeek(ALL_ITEMS, RECIPES, settings(), [], createSeededRng(31));
+describe('rerollCell (§6.5)', () => {
+  const basePlan = () => generateWeek(ALL_ITEMS, RECIPES, settings(), SLOTS, [], createSeededRng(31));
 
   it('changes the pick when alternatives exist and touches nothing else', () => {
     const plan = basePlan();
-    const rerolled = rerollDay(ALL_ITEMS, RECIPES, settings(), plan, 3, createSeededRng(7));
-    expect(rerolled[3]?.recipeId).not.toBe(plan[3]?.recipeId);
+    const rerolled = rerollCell(ALL_ITEMS, RECIPES, settings(), SLOTS, plan, 3, 'd', createSeededRng(7));
+    expect(rid(rerolled[3])).not.toBe(rid(plan[3]));
     rerolled.forEach((entry, i) => {
       if (i !== 3) expect(entry).toEqual(plan[i]);
     });
@@ -308,42 +285,44 @@ describe('rerollDay (§6.5)', () => {
 
   it('keeps the pick when it is the only option', () => {
     const only = [item('pasta')];
-    const plan = generateWeek(only, RECIPES, settings({ noWeekRepeat: false, defaultCooldown: 0 }), [], createSeededRng(1));
-    const rerolled = rerollDay(only, RECIPES, settings({ noWeekRepeat: false, defaultCooldown: 0 }), plan, 2, createSeededRng(2));
-    expect(rerolled[2]?.recipeId).toBe('pasta');
+    const s = settings({ noWeekRepeat: false, defaultCooldown: 0 });
+    const plan = generateWeek(only, RECIPES, s, SLOTS, [], createSeededRng(1));
+    const rerolled = rerollCell(only, RECIPES, s, SLOTS, plan, 2, 'd', createSeededRng(2));
+    expect(rid(rerolled[2])).toBe('pasta');
   });
 
-  it('a locked or out-of-range index returns the plan unchanged, quietly (L5)', () => {
-    const plan = basePlan().map((e, i) => (i === 4 ? { ...e, locked: true } : e));
-    expect(rerollDay(ALL_ITEMS, RECIPES, settings(), plan, 4, createSeededRng(1))).toBe(plan);
-    expect(rerollDay(ALL_ITEMS, RECIPES, settings(), plan, 42, createSeededRng(1))).toBe(plan);
+  it('a locked or out-of-range cell returns the plan unchanged, quietly (L5)', () => {
+    const plan = basePlan().map((e, i) => (i === 4 ? lock(e) : e));
+    expect(rerollCell(ALL_ITEMS, RECIPES, settings(), SLOTS, plan, 4, 'd', createSeededRng(1))).toBe(plan);
+    expect(rerollCell(ALL_ITEMS, RECIPES, settings(), SLOTS, plan, 42, 'd', createSeededRng(1))).toBe(plan);
   });
 });
 
 describe('commitWeek (§6.5) — the only writer of history', () => {
+  const dayEntry = (date: string, recipeId: string | null): PlanEntry => ({
+    dayName: dayNameOf(date),
+    date,
+    slots: { d: { recipeId, locked: false, breakdown: null } },
+  });
+
   it('sets lastServed to the latest planned date per recipe and advances the week', () => {
-    const plan = generateWeek(ALL_ITEMS, RECIPES, settings(), [], createSeededRng(37));
+    const plan = generateWeek(ALL_ITEMS, RECIPES, settings(), SLOTS, [], createSeededRng(37));
     const { items, nextWeekStart } = commitWeek(ALL_ITEMS, plan);
     for (const entry of plan) {
-      expect(items.find((i) => i.recipeId === entry.recipeId)?.lastServed).toBe(entry.date);
+      expect(items.find((i) => i.recipeId === rid(entry))?.lastServed).toBe(entry.date);
     }
     expect(nextWeekStart).toBe('2026-07-13');
   });
 
   it('a recipe appearing twice gets its latest date', () => {
-    const entry = (date: string, recipeId: string) => ({
-      dayName: dayNameOf(date), date, recipeId, locked: false, breakdown: null,
-    });
-    const plan: WeekPlan = [entry(MONDAY, 'pasta'), entry('2026-07-09', 'pasta')];
+    const plan: WeekPlan = [dayEntry(MONDAY, 'pasta'), dayEntry('2026-07-09', 'pasta')];
     const { items } = commitWeek([item('pasta')], plan);
     expect(items[0]?.lastServed).toBe('2026-07-09');
   });
 
   it('unused recipes and null slots are untouched; inputs are not mutated', () => {
     const source = [item('pasta', { lastServed: '2026-05-01' })];
-    const plan: WeekPlan = [
-      { dayName: 'monday', date: MONDAY, recipeId: null, locked: false, breakdown: null },
-    ];
+    const plan: WeekPlan = [dayEntry(MONDAY, null)];
     const { items } = commitWeek(source, plan);
     expect(items[0]?.lastServed).toBe('2026-05-01');
     expect(source[0]?.lastServed).toBe('2026-05-01');

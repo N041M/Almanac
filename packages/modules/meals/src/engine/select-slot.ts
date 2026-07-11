@@ -12,9 +12,11 @@ import { ALTERNATIVES_SHOWN } from './constants.js';
  * rungs leaves the slot null — a normal state, never a throw.
  */
 const LADDER: ReadonlyArray<GateFlags> = [
-  { cooldown: true, weekRepeat: true },
-  { cooldown: true, weekRepeat: false },
-  { cooldown: false, weekRepeat: false },
+  { slotType: true, cooldown: true, weekRepeat: true },
+  { slotType: true, cooldown: true, weekRepeat: false },
+  { slotType: true, cooldown: false, weekRepeat: false },
+  // Last resort: allow any recipe into the slot rather than leave it empty.
+  { slotType: false, cooldown: false, weekRepeat: false },
 ];
 
 export interface SlotSelection {
@@ -27,6 +29,7 @@ export function selectSlot(
   items: ReadonlyArray<PlanItem>,
   recipes: ReadonlyMap<string, Recipe>,
   slotDate: ISODate,
+  slotId: string,
   working: ReadonlyMap<string, ISODate>,
   usedThisWeek: ReadonlySet<string>,
   previousDayTags: ReadonlySet<string>,
@@ -39,6 +42,7 @@ export function selectSlot(
       items,
       recipes,
       slotDate,
+      slotId,
       working,
       usedThisWeek,
       previousDayTags,

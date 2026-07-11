@@ -1,15 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { EN_US, startOfWeek } from '@almanac/core';
+import { EN_US, addDays, startOfWeek } from '@almanac/core';
 import { App } from '../App';
 import { useCalendar } from '../state/store';
 import { useMeals } from '../state/meals';
+import { mealsStore } from '../state/meals-services';
 import { today } from '../clock';
 import i18n from '../i18n/config';
 
 beforeEach(async () => {
   globalThis.localStorage.clear();
+  // Most cases exercise one meal a day; the three-meal default gets its own
+  // test below. (`load()` reads the slot config from storage.)
+  await mealsStore.saveSlots([{ id: 'dinner', name: 'Dinner' }]);
   // No test ever reaches the real network; "offline" is also the degradation
   // the nutrition guess must survive quietly (L5).
   vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))));
@@ -30,7 +34,7 @@ beforeEach(async () => {
     items: [],
     settings: null,
     plan: [],
-    breakdownIndex: null,
+    breakdownCell: null,
     nutritionChoices: {},
     nutritionPick: {},
     dayMeals: {},
@@ -58,7 +62,35 @@ describe('meals UI', () => {
     await openMeals(user);
     expect(screen.getByText(/No meals yet/)).toBeInTheDocument();
     expect(screen.getAllByText('No meal planned')).toHaveLength(7);
-    expect(screen.getByRole('button', { name: 'Generate week' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Re-roll week' })).toBeDisabled();
+  });
+
+  it('plans three meals a day by default, and the slots are configurable', async () => {
+    // Undo the single-slot seeding: fall back to the Breakfast/Lunch/Dinner default.
+    globalThis.localStorage.removeItem('meals:slots');
+    const user = userEvent.setup();
+    await openMeals(user);
+    await addMeal(user, 'Goulash');
+    await addMeal(user, 'Pasta');
+    await addMeal(user, 'Curry');
+
+    // Three empty slots per day, named.
+    expect(screen.getAllByText('No meal planned')).toHaveLength(21);
+    expect(screen.getAllByText('Breakfast')).not.toHaveLength(0);
+    expect(screen.getAllByText('Dinner')).not.toHaveLength(0);
+
+    await user.click(screen.getByRole('button', { name: 'Re-roll week' }));
+    const plan = useMeals.getState().plan;
+    // Every configured slot on every day is planned, and no meal repeats in a day.
+    for (const entry of plan) {
+      const ids = ['breakfast', 'lunch', 'dinner'].map((s) => entry.slots[s]?.recipeId);
+      expect(ids.every((id) => id != null)).toBe(true);
+      expect(new Set(ids).size).toBe(3);
+    }
+
+    // Removing a slot leaves two meals a day.
+    await user.click(screen.getByRole('button', { name: 'Remove Breakfast' }));
+    expect(useMeals.getState().slots.map((s) => s.id)).toEqual(['lunch', 'dinner']);
   });
 
   it('adds meals with tags and presets; they persist and list with controls', async () => {
@@ -82,11 +114,11 @@ describe('meals UI', () => {
     await addMeal(user, 'Pasta');
     await addMeal(user, 'Curry');
 
-    await user.click(screen.getByRole('button', { name: 'Generate week' }));
+    await user.click(screen.getByRole('button', { name: 'Re-roll week' }));
     expect(screen.queryAllByText('No meal planned')).toHaveLength(0);
     const state = useMeals.getState();
     expect(state.plan).toHaveLength(7);
-    expect(state.plan.every((entry) => entry.recipeId !== null)).toBe(true);
+    expect(state.plan.every((entry) => entry.slots['dinner']?.recipeId != null)).toBe(true);
 
     // Breakdown: click the first planned day.
     const rows = screen.getAllByRole('listitem');
@@ -96,20 +128,20 @@ describe('meals UI', () => {
     expect(screen.getByText('Never served')).toBeInTheDocument();
 
     // Lock day 0, re-roll day 1: day 0 must stand, day 1 stays filled.
-    const day0 = useMeals.getState().plan[0]?.recipeId;
+    const day0 = useMeals.getState().plan[0]?.slots['dinner']?.recipeId;
     await user.click(within(rows[0] as HTMLElement).getByRole('button', { name: 'Lock' }));
     await user.click(within(rows[1] as HTMLElement).getByRole('button', { name: 'Re-roll' }));
     const after = useMeals.getState().plan;
-    expect(after[0]?.recipeId).toBe(day0);
-    expect(after[0]?.locked).toBe(true);
-    expect(after[1]?.recipeId).not.toBeNull();
+    expect(after[0]?.slots['dinner']?.recipeId).toBe(day0);
+    expect(after[0]?.slots['dinner']?.locked).toBe(true);
+    expect(after[1]?.slots['dinner']?.recipeId).not.toBeNull();
   });
 
   it('Next week commits history and moves to a fresh week', async () => {
     const user = userEvent.setup();
     await openMeals(user);
     await addMeal(user, 'Goulash');
-    await user.click(screen.getByRole('button', { name: 'Generate week' }));
+    await user.click(screen.getByRole('button', { name: 'Re-roll week' }));
 
     const weekBefore = useMeals.getState().settings?.weekStart;
     await user.click(screen.getByRole('button', { name: 'Next week' }));
@@ -126,14 +158,15 @@ describe('meals UI', () => {
     const user = userEvent.setup();
     await openMeals(user);
     await addMeal(user, 'Goulash');
-    await user.click(screen.getByRole('button', { name: 'Generate week' }));
+    await user.click(screen.getByRole('button', { name: 'Re-roll week' }));
 
     // Today is inside the planned week, so its detail shows the meal.
     await user.click(screen.getByRole('button', { name: 'Calendar' }));
     await user.click(screen.getByRole('gridcell', { current: 'date' }));
     const panel = within(screen.getByRole('complementary'));
     expect(await panel.findByText('Goulash')).toBeInTheDocument();
-    expect(panel.getByText(/Meal:/)).toBeInTheDocument();
+    // Each planned slot gets its own labeled line (here: the seeded dinner slot).
+    expect(panel.getByText(/Dinner:/)).toBeInTheDocument();
   });
 
   it('adds and removes ingredient lines; the catalog reuses ingredients by name', async () => {
@@ -316,7 +349,7 @@ describe('meals UI', () => {
     const user = userEvent.setup();
     await openMeals(user);
     await addMeal(user, 'Goulash');
-    await user.click(screen.getByRole('button', { name: 'Generate week' }));
+    await user.click(screen.getByRole('button', { name: 'Re-roll week' }));
 
     // Calendar: select today (inside the plan week) and copy its meal.
     await user.click(screen.getByRole('button', { name: 'Calendar' }));
@@ -337,20 +370,22 @@ describe('meals UI', () => {
     const raw = globalThis.localStorage.getItem(`day:${target}:meals`) ?? '';
     expect(raw).toContain('"recipeId"');
     // A pasted copy is a fresh placement: no engine breakdown rides along.
-    expect(JSON.parse(raw)).toMatchObject({ d: { breakdown: null, locked: false } });
+    expect(JSON.parse(raw)).toMatchObject({
+      d: { slots: { dinner: { breakdown: null, locked: false } } },
+    });
   });
 
   it('⌘C/⌘V on the grid copy and paste the selected day, quietly no-op when empty', async () => {
     const user = userEvent.setup();
     await openMeals(user);
     await addMeal(user, 'Goulash');
-    await user.click(screen.getByRole('button', { name: 'Generate week' }));
+    await user.click(screen.getByRole('button', { name: 'Re-roll week' }));
     await user.click(screen.getByRole('button', { name: 'Calendar' }));
 
     const grid = screen.getByRole('grid');
     fireEvent.keyDown(grid, { key: 'ArrowRight' }); // selects today
     fireEvent.keyDown(grid, { key: 'c', metaKey: true });
-    expect(useMeals.getState().mealClipboard?.recipeId).not.toBeNull();
+    expect(useMeals.getState().mealClipboard?.slots['dinner']?.recipeId).not.toBeNull();
 
     fireEvent.keyDown(grid, { key: 'ArrowRight' });
     fireEvent.keyDown(grid, { key: 'v', metaKey: true });
@@ -369,18 +404,20 @@ describe('meals UI', () => {
     await openMeals(user);
     await addMeal(user, 'Goulash');
     await addMeal(user, 'Soup');
-    await user.click(screen.getByRole('button', { name: 'Generate week' }));
+    await user.click(screen.getByRole('button', { name: 'Re-roll week' }));
 
     const before = useMeals.getState().plan[2];
-    await useMeals.getState().toggleLock(2);
+    await useMeals.getState().toggleLock(2, 'dinner');
     useMeals.setState({
-      mealClipboard: { recipeId: 'anything-else', locked: false, breakdown: null },
+      mealClipboard: {
+        slots: { dinner: { recipeId: 'anything-else', locked: false, breakdown: null } },
+      },
     });
     await useMeals.getState().pasteMeal(before?.date ?? '');
 
     const after = useMeals.getState().plan[2];
-    expect(after?.recipeId).toBe(before?.recipeId);
-    expect(after?.locked).toBe(true);
+    expect(after?.slots['dinner']?.recipeId).toBe(before?.slots['dinner']?.recipeId);
+    expect(after?.slots['dinner']?.locked).toBe(true);
   });
 
   it('variety is a plain dropdown; picking persists the engine value', async () => {
@@ -397,7 +434,7 @@ describe('meals UI', () => {
     const user = userEvent.setup();
     await openMeals(user);
     await addMeal(user, 'Goulash');
-    await user.click(screen.getByRole('button', { name: 'Generate week' }));
+    await user.click(screen.getByRole('button', { name: 'Re-roll week' }));
     expect(screen.queryAllByText('No meal planned')).toHaveLength(0);
 
     await user.click(screen.getByRole('button', { name: 'Previous week' }));
@@ -414,10 +451,34 @@ describe('meals UI', () => {
     await openMeals(user);
     await addMeal(user, 'Goulash');
     await user.click(screen.getByRole('button', { name: 'Later week' }));
-    await user.click(screen.getByRole('button', { name: 'Generate week' }));
+    await user.click(screen.getByRole('button', { name: 'Re-roll week' }));
     const { plan, viewWeek } = useMeals.getState();
     expect(plan[0]?.date).toBe(viewWeek);
-    expect(plan.every((e) => e.recipeId !== null)).toBe(true);
+    expect(plan.every((e) => e.slots['dinner']?.recipeId != null)).toBe(true);
+  });
+
+  it('committing a past week never rewinds served-history or the week lineage', async () => {
+    const user = userEvent.setup();
+    await openMeals(user);
+    await addMeal(user, 'Goulash');
+    // Plan + commit the current week: lastServed lands in this week.
+    await user.click(screen.getByRole('button', { name: 'Re-roll week' }));
+    await user.click(screen.getByRole('button', { name: 'Next week' }));
+    const forwardServed = useMeals.getState().items[0]?.lastServed;
+    const forwardWeek = useMeals.getState().settings?.weekStart;
+    expect(forwardServed).not.toBeNull();
+
+    // Go back to a much earlier week, plan and commit there.
+    await user.click(screen.getByLabelText('Pick a week'));
+    // Two Mondays before the current view.
+    const past = addDays(useMeals.getState().viewWeek, -21);
+    await useMeals.getState().goToWeek(past);
+    await user.click(screen.getByRole('button', { name: 'Re-roll week' }));
+    await user.click(screen.getByRole('button', { name: 'Next week' }));
+
+    // History and the engine's weekStart only ever move forward (§6.5).
+    expect(useMeals.getState().items[0]?.lastServed).toBe(forwardServed);
+    expect(useMeals.getState().settings?.weekStart).toBe(forwardWeek);
   });
 
   it('estimate-all guesses every factless ingredient; a no-hit shows "No match"', async () => {
@@ -471,7 +532,7 @@ describe('meals UI', () => {
     const user = userEvent.setup();
     await openMeals(user);
     await user.selectOptions(screen.getByLabelText('Language'), 'cs');
-    expect(screen.getByRole('button', { name: 'Vygenerovat týden' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Vylosovat týden znovu' })).toBeInTheDocument();
     expect(screen.getByText('Vaše jídla')).toBeInTheDocument();
   });
 });

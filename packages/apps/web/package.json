@@ -9,10 +9,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@almanac/body": "workspace:*",
+    "@almanac/calendar-interop": "workspace:*",
+    "@almanac/checkin": "workspace:*",
     "@almanac/core": "workspace:*",
+    "@almanac/cycle": "workspace:*",
     "@almanac/food": "workspace:*",
+    "@almanac/macros": "workspace:*",
     "@almanac/meals": "workspace:*",
+    "@almanac/search": "workspace:*",
+    "@almanac/shopping": "workspace:*",
     "@almanac/tasks": "workspace:*",
+    "@almanac/workouts": "workspace:*",
     "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-sql": "^2.2.0",
     "i18next": "^24.2.1",
