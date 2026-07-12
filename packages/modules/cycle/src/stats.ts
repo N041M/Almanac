@@ -246,3 +246,27 @@ export function cycleDayInfo(date: ISODate, stats: CycleStats): CycleDayInfo | n
 export function phaseOn(date: ISODate, stats: CycleStats): CyclePhase | null {
   return cycleDayInfo(date, stats)?.phase ?? null;
 }
+
+/**
+ * The phase of a date inside a *completed* cycle — for history/insights.
+ * Unlike the forward estimate, the next start is recorded fact here, so
+ * ovulation back-counts from it directly (personal luteal median when known).
+ * Dates in the current, open cycle fall back to the forward estimate; dates
+ * before tracking answer null (L5).
+ */
+export function phaseInHistory(date: ISODate, stats: CycleStats): CyclePhase | null {
+  if (stats.periods.some((p) => date >= p.start && date <= p.end)) return 'menstrual';
+  const luteal = Math.round(stats.typicalLutealDays ?? LUTEAL_PHASE_DAYS);
+  for (let i = 1; i < stats.periods.length; i++) {
+    const start = stats.periods[i - 1]?.start;
+    const nextStart = stats.periods[i]?.start;
+    if (start === undefined || nextStart === undefined) continue;
+    if (date < start || date >= nextStart) continue;
+    // A tracking lapse is not a cycle — no phase claims inside it (L5).
+    if (diffDays(start, nextStart) > MAX_PLAUSIBLE_CYCLE_DAYS) return null;
+    const ovulation = addDays(nextStart, -luteal);
+    if (Math.abs(diffDays(ovulation, date)) <= OVULATION_WINDOW_DAYS) return 'ovulation';
+    return date < ovulation ? 'follicular' : 'luteal';
+  }
+  return cycleDayInfo(date, stats)?.phase ?? null;
+}

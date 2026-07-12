@@ -11,7 +11,7 @@ import { useSettings } from '../state/settings';
 import { collectSearchDocs } from '../state/search-sources';
 import { today } from '../clock';
 
-type Screen = 'calendar' | 'tasks' | 'meals' | 'shopping' | 'macros' | 'settings';
+type Screen = 'calendar' | 'tasks' | 'meals' | 'shopping' | 'macros' | 'insights' | 'settings';
 
 /** Search-doc kind → its i18n key (missing kinds fall back to the raw kind). */
 const KIND_KEY: Record<string, string> = {
@@ -118,7 +118,7 @@ export function CommandPalette({
           setView(view);
         },
       })),
-      ...(['tasks', 'meals', 'shopping', 'macros'] as const)
+      ...(['tasks', 'meals', 'shopping', 'macros', 'insights'] as const)
         .filter((id) => !hiddenModules.includes(id))
         .map((id) => ({
           id: `tab-${id}`,

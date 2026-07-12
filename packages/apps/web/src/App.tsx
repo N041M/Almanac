@@ -11,11 +11,14 @@ import { MealsView } from './meals/MealsView';
 import { ShoppingView } from './shopping/ShoppingView';
 import { MacrosView } from './macros/MacrosView';
 import { TasksView } from './tasks/TasksView';
+import { InsightsView } from './insights/InsightsView';
 import { SettingsView } from './settings/SettingsView';
 import { CommandPalette } from './palette/CommandPalette';
+import { PlannerSection } from './planner/PlannerSection';
+import { useModuleVisible } from './state/module-visibility';
 import { Button } from './ui/Button';
 
-type Screen = 'calendar' | 'tasks' | 'meals' | 'shopping' | 'macros' | 'settings';
+type Screen = 'calendar' | 'tasks' | 'meals' | 'shopping' | 'macros' | 'insights' | 'settings';
 
 /** The 5.4 undo toast: names the last action, offers Undo, fades on its own. */
 function UndoToast() {
@@ -57,6 +60,7 @@ export function App() {
   const hiddenModules = useSettings((s) => s.hiddenModules);
   const [screen, setScreen] = useState<Screen>('calendar');
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const plannerVisible = useModuleVisible('planner');
 
   // A hidden module keeps no screen: standing on one bounces home (L5 — the
   // filter never strands the user on a blank surface).
@@ -121,6 +125,7 @@ export function App() {
           {tab('meals', t('meals:title'))}
           {tab('shopping', t('shopping:title'))}
           {tab('macros', t('macros:title'))}
+          {tab('insights', t('insights:title'))}
           {tab('settings', t('navSettings'))}
         </nav>
         <label className="ml-auto flex items-center gap-2 text-sm text-ink-muted">
@@ -160,6 +165,11 @@ export function App() {
           <MacrosView />
         </main>
       )}
+      {screen === 'insights' && (
+        <main className="mx-auto max-w-3xl p-6">
+          <InsightsView />
+        </main>
+      )}
       {screen === 'settings' && (
         <main className="mx-auto max-w-3xl p-6">
           <SettingsView />
@@ -179,8 +189,11 @@ export function App() {
             <CalendarView />
           </div>
           {view !== 'day' && view !== 'agenda' && view !== 'timeline' && (
-            <aside className="rounded-2xl border border-line bg-surface-raised p-4 shadow-sm">
-              <DayPanel />
+            <aside className="space-y-4">
+              {plannerVisible && <PlannerSection />}
+              <div className="rounded-2xl border border-line bg-surface-raised p-4 shadow-sm">
+                <DayPanel />
+              </div>
             </aside>
           )}
         </main>

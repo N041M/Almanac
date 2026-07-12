@@ -9,6 +9,10 @@ import { checkinManifest } from '@almanac/checkin';
 import { cycleManifest } from '@almanac/cycle';
 import { bodyManifest } from '@almanac/body';
 import { workoutsManifest } from '@almanac/workouts';
+import { weatherManifest } from '@almanac/weather';
+import { birthdaysManifest } from '@almanac/birthdays';
+import { insightsManifest } from '@almanac/insights';
+import { plannerManifest } from '@almanac/planner';
 import { applyManifests, type ModuleManifest } from '@almanac/core';
 import { resources } from './resources';
 
@@ -26,6 +30,10 @@ const manifests: ReadonlyArray<ModuleManifest> = [
   cycleManifest,
   bodyManifest,
   workoutsManifest,
+  weatherManifest,
+  birthdaysManifest,
+  insightsManifest,
+  plannerManifest,
 ];
 const { bundles } = applyManifests(manifests);
 
