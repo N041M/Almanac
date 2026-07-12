@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { bcp47, MS_PER_DAY, type Weekday } from '@almanac/core';
 import { useCalendar } from '../state/store';
 import { useSettings } from '../state/settings';
 import { TOGGLEABLE_MODULES, useModuleVisible } from '../state/module-visibility';
 import { useCycle } from '../state/cycle';
+import { useWeather } from '../state/weather';
 import { syncReminders, useTasks } from '../state/tasks';
 import { Button } from '../ui/Button';
 import { CalendarsManager } from './CalendarsManager';
@@ -39,6 +40,17 @@ export function SettingsView() {
   const cycleVisible = useModuleVisible('cycle');
   const predictionEnabled = useCycle((s) => s.predictionEnabled);
   const setPredictionEnabled = useCycle((s) => s.setPredictionEnabled);
+  const weatherVisible = useModuleVisible('weather');
+  const weatherPlace = useWeather((s) => s.place);
+  const weatherLookupFailed = useWeather((s) => s.lastLookupFailed);
+  const loadWeather = useWeather((s) => s.load);
+  const setCity = useWeather((s) => s.setCity);
+  const [cityText, setCityText] = useState('');
+
+  // The saved place shows as the field's placeholder once loaded.
+  useEffect(() => {
+    if (weatherVisible) void loadWeather();
+  }, [weatherVisible, loadWeather]);
 
   const fileInput = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
@@ -174,6 +186,32 @@ export function SettingsView() {
           );
         })}
       </section>
+
+      {weatherVisible && (
+        <section className="space-y-3 rounded-2xl border border-line bg-surface-raised p-4 shadow-sm">
+          <h2 className="font-semibold">{t('weather:title')}</h2>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void setCity(cityText).then((ok) => {
+                if (ok) setCityText('');
+              });
+            }}
+          >
+            <input
+              aria-label={t('weather:city')}
+              placeholder={weatherPlace?.label ?? t('weather:cityPlaceholder')}
+              value={cityText}
+              onChange={(e) => setCityText(e.target.value)}
+              className="w-full rounded-lg border border-line bg-surface-raised px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-accent"
+            />
+          </form>
+          {weatherLookupFailed && (
+            <p className="text-sm text-ink-muted">{t('weather:cityNotFound')}</p>
+          )}
+          <p className="text-xs text-ink-faint">{t('weather:attribution')}</p>
+        </section>
+      )}
 
       <CalendarsManager />
 

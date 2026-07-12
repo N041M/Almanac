@@ -11,6 +11,7 @@ import { CheckinSection } from '../checkin/CheckinSection';
 import { CycleSection } from '../cycle/CycleSection';
 import { BodySection } from '../body/BodySection';
 import { WorkoutsSection } from '../workouts/WorkoutsSection';
+import { WeatherLine } from '../weather/WeatherLine';
 import { Button } from '../ui/Button';
 
 /**
@@ -51,6 +52,7 @@ export function DayDetail({
   const cycleVisible = useModuleVisible('cycle');
   const bodyVisible = useModuleVisible('body');
   const workoutsVisible = useModuleVisible('workouts');
+  const weatherVisible = useModuleVisible('weather');
   const entry = plan.find((e) => e.date === date);
   const slice = entry !== undefined ? { slots: entry.slots } : dayMeals[date];
   const plannedMeals = !mealsVisible
@@ -85,6 +87,7 @@ export function DayDetail({
   return (
     <div className="space-y-4">
       {heading && <h3 className="font-semibold capitalize">{label}</h3>}
+      {weatherVisible && <WeatherLine date={date} />}
       {plannedMeals.length > 0 && (
         <ul className="space-y-1 text-sm">
           {plannedMeals.map(({ slotId, name }) => {

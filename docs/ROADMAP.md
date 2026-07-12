@@ -22,7 +22,7 @@ Status: ✅ done · 🔨 in progress · — planned.
 | 6 | Tasks module | tasks/events/habits on v2 primitives; multiple calendars (colors/visibility); NL quick entry + picker composer; command palette; series split; notifications wired (snooze deferred: no platform support yet — plain notifications per the L5 row; habit-editing UI rides a later pass) | ✅ |
 | 7 | Macros + Shopping | both modules + UI; two-trigger aggregation (§8.1) | ✅ |
 | 8 | Interop & findability | ICS import/export · calendar subscriptions · search · year view · printing | ✅ |
-| 9 | Life modules | check-in ✅ · cycle ✅ · body ✅ · workouts ✅ (log; plan-gen later) · weather · insights (health + time allocation) · birthdays · planner (timeboxing) · secondary-TZ leftover | 🔨 |
+| 9 | Life modules | check-in ✅ · cycle ✅ · body ✅ · workouts ✅ (log; plan-gen later) · weather ✅ · insights (health + time allocation) · birthdays · planner (timeboxing) · secondary-TZ leftover | 🔨 |
 | 10 | Sync | D1/D4: accounts, per-slice LWW revision sync, server-durable | — |
 | 11 | Mobile + surfaces | Expo client · widgets · tray mini-calendar · polish | — |
 | 12 | Multi-user | shared calendars · attendees/invites/RSVP · free-busy + find-a-time · booking pages · conferencing links | — |
@@ -192,6 +192,15 @@ Additions from the calendar-features gap analysis (2026-07-11):
   (see §15 scope edges) — never core, never default.
 - **Secondary-TZ leftover** from 5.4 lands during this phase's wrap-up (it
   shipped in neither P5 nor P6 — see the audit note there).
+- **Weather multi-source posture (decided 2026-07-11):** one provider
+  (Open-Meteo) behind `WeatherPort`. A second source, if ever, composes
+  behind the same port as a **fallback chain, not an average** — resellers
+  share the underlying models, so averaging correlated data buys little, and
+  half the fields (condition codes, rain timing) have no meaningful mean.
+  If ensemble nuance is ever wanted, Open-Meteo's ensemble endpoint is the
+  honest source, with **spread surfaced as confidence** (wide disagreement ⇒
+  a hedged label, the cycle module's posture). Coverage-style multi-source
+  (union, first-hit) remains right for `NutritionPort` (OFF + USDA later).
 
 ## Phase 11 — Mobile + surfaces
 Expo client reusing everything; **home-screen widgets** (month glance, today
