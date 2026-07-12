@@ -16,6 +16,7 @@
     "@almanac/core": "workspace:*",
     "@almanac/cycle": "workspace:*",
     "@almanac/food": "workspace:*",
+    "@almanac/insights": "workspace:*",
     "@almanac/macros": "workspace:*",
     "@almanac/meals": "workspace:*",
     "@almanac/search": "workspace:*",

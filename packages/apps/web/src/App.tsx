@@ -11,11 +11,12 @@ import { MealsView } from './meals/MealsView';
 import { ShoppingView } from './shopping/ShoppingView';
 import { MacrosView } from './macros/MacrosView';
 import { TasksView } from './tasks/TasksView';
+import { InsightsView } from './insights/InsightsView';
 import { SettingsView } from './settings/SettingsView';
 import { CommandPalette } from './palette/CommandPalette';
 import { Button } from './ui/Button';
 
-type Screen = 'calendar' | 'tasks' | 'meals' | 'shopping' | 'macros' | 'settings';
+type Screen = 'calendar' | 'tasks' | 'meals' | 'shopping' | 'macros' | 'insights' | 'settings';
 
 /** The 5.4 undo toast: names the last action, offers Undo, fades on its own. */
 function UndoToast() {
@@ -121,6 +122,7 @@ export function App() {
           {tab('meals', t('meals:title'))}
           {tab('shopping', t('shopping:title'))}
           {tab('macros', t('macros:title'))}
+          {tab('insights', t('insights:title'))}
           {tab('settings', t('navSettings'))}
         </nav>
         <label className="ml-auto flex items-center gap-2 text-sm text-ink-muted">
@@ -158,6 +160,11 @@ export function App() {
       {screen === 'macros' && (
         <main className="mx-auto max-w-3xl p-6">
           <MacrosView />
+        </main>
+      )}
+      {screen === 'insights' && (
+        <main className="mx-auto max-w-3xl p-6">
+          <InsightsView />
         </main>
       )}
       {screen === 'settings' && (

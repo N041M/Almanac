@@ -5,6 +5,7 @@ import {
   cycleDayInfo,
   cycleStats,
   periodsFromFlowDays,
+  phaseInHistory,
   phaseOn,
   predictNextStart,
   predictionWindow,
@@ -179,6 +180,26 @@ describe('measured ovulation (LH tests) — measurement outranks calendar math',
     const stats = cycleStats(['2026-01-01', '2026-01-29'], ['2026-01-27']);
     expect(stats.lutealLengths).toEqual([]);
     expect(stats.typicalLutealDays).toBeNull();
+  });
+});
+
+describe('phase in history (for insights: completed cycles are fact, not estimate)', () => {
+  const stats = cycleStats(FLOW_DAYS);
+
+  it('back-counts ovulation from the recorded next start', () => {
+    // Cycle 2026-01-01 → 01-29: ovulation = 01-29 − 14 = 01-15.
+    expect(phaseInHistory('2026-01-15', stats)).toBe('ovulation');
+    expect(phaseInHistory('2026-01-10', stats)).toBe('follicular');
+    expect(phaseInHistory('2026-01-20', stats)).toBe('luteal');
+    expect(phaseInHistory('2026-01-02', stats)).toBe('menstrual'); // logged
+  });
+
+  it('answers null before tracking and inside a lapse; current cycle falls back to the estimate', () => {
+    expect(phaseInHistory('2025-12-20', stats)).toBeNull();
+    expect(phaseInHistory('2026-03-12', stats)).toBe('ovulation'); // current cycle, estimated
+    // A 200-day gap between starts is a lapse — no claims inside it.
+    const gappy = cycleStats(['2026-01-01', '2026-07-20']);
+    expect(phaseInHistory('2026-04-01', gappy)).toBeNull();
   });
 });
 

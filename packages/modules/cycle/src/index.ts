@@ -21,6 +21,7 @@ export {
   cycleDayInfo,
   cycleStats,
   periodsFromFlowDays,
+  phaseInHistory,
   phaseOn,
   predictNextStart,
   predictionWindow,

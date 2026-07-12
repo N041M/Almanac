@@ -47,7 +47,9 @@
       "@almanac/weather": ["./packages/modules/weather/src/index.ts"],
       "@almanac/weather/*": ["./packages/modules/weather/src/*"],
       "@almanac/birthdays": ["./packages/modules/birthdays/src/index.ts"],
-      "@almanac/birthdays/*": ["./packages/modules/birthdays/src/*"]
+      "@almanac/birthdays/*": ["./packages/modules/birthdays/src/*"],
+      "@almanac/insights": ["./packages/modules/insights/src/index.ts"],
+      "@almanac/insights/*": ["./packages/modules/insights/src/*"]
     }
   }
 }
