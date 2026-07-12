@@ -9,7 +9,34 @@ Entries are grouped by **build phase** (design doc §13) until v1.
 
 ## [Unreleased]
 
-### Phase 9 — Life modules (in progress)
+### Phase 9 — Life modules (complete)
+- **Workouts** (`@almanac/workouts`): session log — sessions with optional
+  per-exercise set lines (name/sets/reps/kg, every number optional). Plan
+  generation (§8's optional meal-engine-pattern layer) writes this same slice
+  later.
+- **Weather** (`@almanac/weather`): Open-Meteo behind core's `WeatherPort`
+  (injected fetch); daily max temp + WMO code cached into day slices, 6-hour
+  refresh throttle, failed fetch keeps the cache. Manual city via the
+  geocoder; today's snapshot registers as an **abstract signal** so consumers
+  never import the module. **Multi-source posture:** one provider; a second
+  would compose as a fallback chain, never an average (correlated models).
+- **Birthdays** (`@almanac/birthdays`): manual entries, yearly occurrences
+  derived on read (Feb-29 → Feb 28 off-leap-years), ages when the year is
+  known; contacts import stays behind a future capability port.
+- **Insights** (`@almanac/insights`): descriptive analytics that own no data —
+  gated Pearson correlation, group averages, time allocation — over neutral
+  inputs the app assembles from shared day records. Panels: time-this-week per
+  calendar, mood/energy + their correlation, energy by cycle phase (via a new
+  `phaseInHistory` helper that back-counts ovulation from the *recorded* next
+  start).
+- **Planner** (`@almanac/planner`): deterministic timeboxing (no "AI") —
+  deadline pressure × D9 priority, greedy earliest-fit into free working-hour
+  slots around busy blocks, with a "why this slot" breakdown. **Suggestions
+  the user confirms; never silent moves.**
+- **Secondary time zone + working hours** (5.4 leftover, audited and landed):
+  optional second-zone column and shaded non-working hours on the timeline.
+
+### Phase 9 — Life modules (first modules)
 - **Daily check-in** (`@almanac/checkin`): mood/energy (1–5), symptoms, note
   as a day slice — the shared day data cycle and insights read by namespace.
 - **Cycle tracking** (`@almanac/cycle`): per-day flow + optional LH test;

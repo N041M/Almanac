@@ -74,6 +74,9 @@ importers:
       '@almanac/meals':
         specifier: workspace:*
         version: link:../../modules/meals
+      '@almanac/planner':
+        specifier: workspace:*
+        version: link:../../modules/planner
       '@almanac/search':
         specifier: workspace:*
         version: link:../../modules/search
@@ -206,6 +209,12 @@ importers:
       '@almanac/food':
         specifier: workspace:*
         version: link:../../kernels/food
+
+  packages/modules/planner:
+    dependencies:
+      '@almanac/core':
+        specifier: workspace:*
+        version: link:../../core
 
   packages/modules/search:
     dependencies:

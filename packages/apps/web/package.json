@@ -19,6 +19,7 @@
     "@almanac/insights": "workspace:*",
     "@almanac/macros": "workspace:*",
     "@almanac/meals": "workspace:*",
+    "@almanac/planner": "workspace:*",
     "@almanac/search": "workspace:*",
     "@almanac/shopping": "workspace:*",
     "@almanac/tasks": "workspace:*",

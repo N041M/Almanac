@@ -14,6 +14,8 @@ import { TasksView } from './tasks/TasksView';
 import { InsightsView } from './insights/InsightsView';
 import { SettingsView } from './settings/SettingsView';
 import { CommandPalette } from './palette/CommandPalette';
+import { PlannerSection } from './planner/PlannerSection';
+import { useModuleVisible } from './state/module-visibility';
 import { Button } from './ui/Button';
 
 type Screen = 'calendar' | 'tasks' | 'meals' | 'shopping' | 'macros' | 'insights' | 'settings';
@@ -58,6 +60,7 @@ export function App() {
   const hiddenModules = useSettings((s) => s.hiddenModules);
   const [screen, setScreen] = useState<Screen>('calendar');
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const plannerVisible = useModuleVisible('planner');
 
   // A hidden module keeps no screen: standing on one bounces home (L5 — the
   // filter never strands the user on a blank surface).
@@ -186,8 +189,11 @@ export function App() {
             <CalendarView />
           </div>
           {view !== 'day' && view !== 'agenda' && view !== 'timeline' && (
-            <aside className="rounded-2xl border border-line bg-surface-raised p-4 shadow-sm">
-              <DayPanel />
+            <aside className="space-y-4">
+              {plannerVisible && <PlannerSection />}
+              <div className="rounded-2xl border border-line bg-surface-raised p-4 shadow-sm">
+                <DayPanel />
+              </div>
             </aside>
           )}
         </main>

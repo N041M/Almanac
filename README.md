@@ -36,18 +36,26 @@ ESLint `boundaries` · i18next (EN + CS) · Open Food Facts · Open-Meteo.
 
 ## Status
 
-**Phases 0–8 complete; Phase 9 (life modules) in progress.** The calendar is
-livable-in daily: month/week/timeline/day/agenda/year views · recurrence v2
-with per-instance overrides and series splits · timed/multi-day/timezone
-events · drag & drop, undo, copy/paste · a ⌘K palette with ranked search ·
-multiple calendars · tasks/events/habits with NL quick entry, unbounded
-numbered priority (D9), and reminders · meal planning (several meals a day,
-lock/re-roll, "why this pick" breakdown) · macros · shopping · ICS
-import/export + read-only feed subscriptions · printing · vault backup.
-Phase 9 so far: daily check-in, cycle tracking (median stats, informational
-phase/fertile estimates, LH-test anchoring), body & weight trend, and a
-per-module show/hide setting. Desktop = Tauri v2 over the shared renderer
-with a SQLite store. ~390 tests. Sequence: [docs/ROADMAP.md](docs/ROADMAP.md).
+**Phases 0–9 complete; Phase 10 (sync) next.** The calendar is livable-in
+daily: month/week/timeline/day/agenda/year views · recurrence v2 with
+per-instance overrides and series splits · timed/multi-day/timezone events ·
+drag & drop, undo, copy/paste · a ⌘K palette with ranked search · multiple
+calendars · secondary time zone + working hours · tasks/events/habits with NL
+quick entry, unbounded numbered priority (D9), and reminders · meal planning
+(several meals a day, lock/re-roll, "why this pick" breakdown) · macros ·
+shopping · ICS import/export + read-only feed subscriptions · printing · vault
+backup.
+
+**Eleven modules**, each independently removable (a show/hide setting in
+Settings proves it): meals · tasks · shopping · macros · search ·
+calendar-interop · check-in · cycle (median stats, informational phase/fertile
+estimates, LH-test anchoring) · body & weight trend · workouts · weather
+(Open-Meteo behind a port) · birthdays · insights (descriptive analytics that
+own no data) · planner (deterministic timeboxing — suggestions you confirm,
+never silent moves).
+
+Desktop = Tauri v2 over the shared renderer with a SQLite store. ~440 tests.
+Sequence: [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## The one-line why
 

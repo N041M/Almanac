@@ -7,7 +7,28 @@ deferred, and anything we're unsure about.
 
 ---
 
-## Phase 9 — Life modules (in progress, 2026-07-07 → )
+## Phase 9 — Life modules (complete, 2026-07-07 → 07-12)
+
+**Closed out** (2026-07-12) with four more modules and the audited leftover:
+**workouts** (session log; §8's plan generation deferred as an optional layer
+over the same slice), **weather** (the first module with a real outbound port
+— Open-Meteo behind `WeatherPort`, aggressively cached, registering today's
+snapshot as an *abstract signal* so the meal engine could consume it without
+importing anything), **birthdays** (derived yearly occurrences, no expansion
+stored), **insights** (the payoff of the unified day record: descriptive
+analytics that own no data and import no module), and the **planner** —
+deterministic timeboxing on the meal-engine pattern, with the product line
+drawn explicitly: *suggestions the user confirms, never silent moves*. The
+5.4 secondary-time-zone item the docs audit caught also landed.
+
+A question worth recording: the user asked whether averaging several weather
+APIs would improve the data. It wouldn't — consumer APIs resell the same
+underlying models, so their errors are correlated, and half the fields
+(condition codes, rain timing) have no meaningful mean. The posture is now in
+the roadmap: multiple sources compose as a **fallback chain**, and ensemble
+*spread* (not average) is the honest confidence signal if we ever want it.
+
+## Phase 9 — Life modules (first modules, 2026-07-07 → )
 
 **Goal:** the §8 life modules, each proving again that a module is a day slice
 plus pure logic plus a section the shell composes — no module ever importing

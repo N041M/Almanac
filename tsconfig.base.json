@@ -49,7 +49,9 @@
       "@almanac/birthdays": ["./packages/modules/birthdays/src/index.ts"],
       "@almanac/birthdays/*": ["./packages/modules/birthdays/src/*"],
       "@almanac/insights": ["./packages/modules/insights/src/index.ts"],
-      "@almanac/insights/*": ["./packages/modules/insights/src/*"]
+      "@almanac/insights/*": ["./packages/modules/insights/src/*"],
+      "@almanac/planner": ["./packages/modules/planner/src/index.ts"],
+      "@almanac/planner/*": ["./packages/modules/planner/src/*"]
     }
   }
 }
